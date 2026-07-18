@@ -1,0 +1,32 @@
+version: 1
+host:
+  name: Development Mac
+network:
+  mode: direct
+  # Loopback during development; select a private interface only after LAN enablement.
+  listenHost: 127.0.0.1
+  listenPort: 7443
+  transport: websocket
+  applicationEncryption: required
+  mdns: false
+  privateEndpoints: []
+relay:
+  enabled: false
+  url: null
+storage:
+  eventRetentionDays: 7
+  maxEvents: 50000
+security:
+  requireBiometricForHighRisk: true
+  redactSecrets: true
+  rejectPlaintextUcpFrames: true
+runtimes:
+  codex:
+    enabled: true
+    mode: managed
+  opencode:
+    enabled: true
+    mode: managed
+  claude:
+    enabled: false
+    mode: managed-sdk

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-deck.local/schemas/ucp-envelope.schema.json",
+  "title": "UCP Envelope",
+  "type": "object",
+  "required": [
+    "protocol",
+    "version",
+    "messageId",
+    "type",
+    "timestamp",
+    "hostId",
+    "payload"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "ucp"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "messageId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hostId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "correlationId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

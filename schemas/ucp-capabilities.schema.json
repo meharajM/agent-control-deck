@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-deck.local/schemas/ucp-capabilities.schema.json",
+  "title": "UCP Session Capabilities",
+  "type": "object",
+  "required": [
+    "send",
+    "steerInFlight",
+    "cancel",
+    "retry",
+    "resume",
+    "fork",
+    "approvals",
+    "questions",
+    "previews",
+    "skills",
+    "macros"
+  ],
+  "properties": {
+    "send": {
+      "type": "boolean"
+    },
+    "steerInFlight": {
+      "type": "boolean"
+    },
+    "cancel": {
+      "type": "boolean"
+    },
+    "retry": {
+      "type": "boolean"
+    },
+    "resume": {
+      "type": "boolean"
+    },
+    "fork": {
+      "type": "boolean"
+    },
+    "approvals": {
+      "type": "object",
+      "required": [
+        "command",
+        "fileChange",
+        "network",
+        "filesystem",
+        "genericTool",
+        "approveForSession",
+        "modifyBeforeApproval"
+      ],
+      "properties": {
+        "command": {
+          "type": "boolean"
+        },
+        "fileChange": {
+          "type": "boolean"
+        },
+        "network": {
+          "type": "boolean"
+        },
+        "filesystem": {
+          "type": "boolean"
+        },
+        "genericTool": {
+          "type": "boolean"
+        },
+        "approveForSession": {
+          "type": "boolean"
+        },
+        "modifyBeforeApproval": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "questions": {
+      "type": "object",
+      "required": [
+        "singleChoice",
+        "multiSelect",
+        "freeText"
+      ],
+      "properties": {
+        "singleChoice": {
+          "type": "boolean"
+        },
+        "multiSelect": {
+          "type": "boolean"
+        },
+        "freeText": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "previews": {
+      "type": "object",
+      "required": [
+        "diff",
+        "tests",
+        "commands",
+        "files",
+        "rawTranscript"
+      ],
+      "properties": {
+        "diff": {
+          "type": "boolean"
+        },
+        "tests": {
+          "type": "boolean"
+        },
+        "commands": {
+          "type": "boolean"
+        },
+        "files": {
+          "type": "boolean"
+        },
+        "rawTranscript": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "effortLevels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "skills": {
+      "type": "boolean"
+    },
+    "macros": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

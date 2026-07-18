@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-deck.local/schemas/ucp-command.schema.json",
+  "title": "UCP State-Changing Command Payload",
+  "type": "object",
+  "required": [
+    "commandId",
+    "idempotencyKey"
+  ],
+  "properties": {
+    "commandId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "expectedSessionVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedApprovalVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "issuedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}
