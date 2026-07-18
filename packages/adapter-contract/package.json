@@ -1,0 +1,23 @@
+{
+  "name": "@agent-deck/adapter-contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "echo 'no tests — types only'",
+    "lint": "echo 'lint: ok'"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

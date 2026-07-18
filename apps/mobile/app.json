@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Agent Deck",
+    "slug": "agent-deck",
+    "version": "1.0.0",
+    "scheme": "agentdeck",
+    "platforms": ["ios", "android"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.agentdeck.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.agentdeck.mobile"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Agent Deck to use the camera for QR pairing."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Agent Deck to use Face ID for high-risk approval confirmation."
+        }
+      ]
+    ]
+  }
+}
