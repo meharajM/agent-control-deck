@@ -22,7 +22,7 @@ async function main() {
 
   await app.start();
   const gateway = app.getGateway();
-  console.log(`Bridge listening on ws://0.0.0.0:${gateway?.port}`);
+  console.log(`Bridge listening on ws://${gateway?.host || '0.0.0.0'}:${gateway?.port}`);
   console.log(`Host ID: ${app.hostId}`);
   console.log(`Runtime: ${runtime}`);
 

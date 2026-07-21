@@ -15,6 +15,7 @@ import {
 
 export interface UcpGatewayConfig {
   port: number;
+  host?: string;
   hostId: HostId;
   hostName?: string;
   hostPublicKey?: string;
@@ -60,6 +61,7 @@ export class UcpGateway {
   // ponytail: simple IP-based rate limiting with a Map — production would use a token bucket
   private readonly connectionAttempts = new Map<string, number[]>();
   port = 0;
+  host = '';
 
   constructor(config: UcpGatewayConfig) {
     this.config = config;
@@ -67,9 +69,15 @@ export class UcpGateway {
 
   start(): Promise<number> {
     return new Promise((resolve, reject) => {
-      this.wss = new WebSocketServer({ port: this.config.port }, () => {
+      this.wss = new WebSocketServer({ port: this.config.port, host: this.config.host }, () => {
         const addr = this.wss!.address();
-        this.port = typeof addr === 'object' && addr ? addr.port : this.config.port;
+        if (typeof addr === 'object' && addr) {
+          this.port = addr.port;
+          this.host = addr.address;
+        } else {
+          this.port = this.config.port;
+          this.host = this.config.host ?? '';
+        }
         resolve(this.port);
       });
       this.wss.on('error', reject);
@@ -78,23 +86,22 @@ export class UcpGateway {
   }
 
   broadcast(envelope: UcpEnvelope): void {
-    const data = JSON.stringify(envelope);
     for (const client of this.authenticated) {
-      if (client.ws.readyState === WebSocket.OPEN) {
-        client.ws.send(data);
-      }
+      this.sendEncrypted(client, envelope);
     }
     for (const ws of this.unauthenticated) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(data);
-      }
+      this.sendPlaintext(ws, envelope);
     }
   }
 
   sendToClient(ws: WebSocket, envelope: UcpEnvelope): void {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(envelope));
+    const authenticatedClient = this.getAuthenticatedClient(ws);
+    if (authenticatedClient) {
+      this.sendEncrypted(authenticatedClient, envelope);
+      return;
     }
+
+    this.sendPlaintext(ws, envelope);
   }
 
   /** Send an encrypted frame to an authenticated client. */
@@ -310,6 +317,22 @@ export class UcpGateway {
     ws.on('close', () => {
       cleanup();
     });
+  }
+
+  private getAuthenticatedClient(ws: WebSocket): AuthenticatedClient | undefined {
+    for (const client of this.authenticated) {
+      if (client.ws === ws) {
+        return client;
+      }
+    }
+
+    return undefined;
+  }
+
+  private sendPlaintext(ws: WebSocket, envelope: UcpEnvelope): void {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(envelope));
+    }
   }
 
   /** Legacy connection handling without encryption — for backward compatibility and tests. */

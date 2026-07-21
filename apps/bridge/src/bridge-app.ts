@@ -77,6 +77,7 @@ export class BridgeApp {
 
     this.gateway = new UcpGateway({
       port: this.config.port,
+      host: bindHost,
       hostId: this.hostId,
       hostName: 'Agent Deck Bridge',
       commandLedger: this.commandLedger,

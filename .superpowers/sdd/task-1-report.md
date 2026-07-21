@@ -134,3 +134,49 @@
 ### Notes
 - The `bridge-app` focused test remains environment-blocked by the missing `better-sqlite3` native binding in this workspace. That issue predates this fix and is unchanged by the patch.
 - No mobile protocol, pairing, encryption, or runtime surface was changed.
+
+---
+
+## Fix report — Tuesday, July 21, 2026
+
+### Review findings addressed
+- Secure-mode adapter event delivery now encrypts outbound UCP frames for authenticated sockets instead of broadcasting plaintext.
+- Plaintext broadcast behavior is preserved only on the explicit legacy path.
+- `BRIDGE_INTERFACE` / `config.interface` now flows into the WebSocket server bind host instead of being resolved and then ignored.
+- Bridge startup logging now reports the actual bound host from the gateway.
+- Legacy reconnect handling for `payload.lastSyncSequence` was rechecked and left intact; the existing regression test still passes unchanged.
+
+### Files changed for this fix
+- `apps/bridge/src/ucp-gateway.ts`
+- `apps/bridge/src/bridge-app.ts`
+- `apps/bridge/src/main.ts`
+- `apps/bridge/src/__tests__/ucp-gateway.test.ts`
+- `.superpowers/sdd/task-1-report.md`
+
+### Focused verification
+- Command:
+  - `./node_modules/.bin/vitest run src/__tests__/ucp-gateway.test.ts`
+- Result:
+  - `1` test file passed
+  - `9` tests passed
+  - coverage includes encrypted secure broadcast delivery, legacy plaintext broadcast behavior, bind-host behavior, and the existing legacy reconnect cutoff path
+
+- Command:
+  - `./node_modules/.bin/vitest run src/__tests__/bridge-app.test.ts`
+- Result:
+  - blocked by the existing missing native `better-sqlite3` binding in this workspace
+  - failure occurs before the bridge-app assertions execute
+
+- Command:
+  - `./node_modules/.bin/tsc --project tsconfig.json --noEmit`
+- Result:
+  - passed with exit code `0`
+
+### Security and compatibility notes
+- Secure transport was tightened, not weakened: authenticated clients now receive encrypted event frames consistently after pairing.
+- Legacy/plaintext mode remains available only when `allowInsecureLegacyMode` is explicitly enabled.
+- No mobile protocol changes were made.
+- No adapter loading behavior changed; real adapters remain lazy-loaded only when selected.
+
+### Remaining concern
+- `bridge-app.test.ts` is still blocked by the existing local native dependency issue for `better-sqlite3`. That environment problem is unchanged by this fix.

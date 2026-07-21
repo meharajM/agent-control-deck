@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import { UcpGateway } from '../ucp-gateway.js';
@@ -297,6 +297,64 @@ describe('UcpGateway secure mode', () => {
     expect(closed.code).toBe(4005);
     expect(closed.reason).toBe('Device revoked');
   });
+
+  it('broadcasts adapter events as encrypted frames to authenticated clients', async () => {
+    const { hostKeys } = await createGateway();
+    const deviceKeys = await generateIdentityKeyPair();
+    const session = deriveSessionKey(deviceKeys.privateKeyBase64, hostKeys.publicKeyBase64);
+    const fakeWs = {
+      readyState: WebSocket.OPEN,
+      send: vi.fn(),
+      close: vi.fn(),
+    } as unknown as WebSocket;
+
+    (gateway as any).authenticated.add({
+      ws: fakeWs,
+      deviceId: 'device-1',
+      devicePublicKey: deviceKeys.publicKeyBase64,
+      sessionKeyBase64: session.sessionKeyBase64,
+      nextSendSequence: 0,
+      lastReceivedSequence: 0,
+    });
+
+    gateway!.broadcast(buildEnvelope('session.updated', { summary: 'encrypted event' }));
+
+    const capture = (fakeWs as any).send as ReturnType<typeof vi.fn>;
+    expect(capture).toHaveBeenCalledTimes(1);
+    const rawPayload = capture.mock.calls[0]?.[0];
+    expect(rawPayload).toBeDefined();
+    const frame = JSON.parse(String(rawPayload)) as EncryptedFrame;
+    expect(((frame as unknown) as Record<string, unknown>).type).toBeUndefined();
+    expect(frame.encrypted).toBe(true);
+
+    const decrypted = decryptFrame(frame, session.sessionKeyBase64) as unknown as UcpEnvelope;
+    expect(decrypted.type).toBe('session.updated');
+    expect(decrypted.payload).toEqual({ summary: 'encrypted event' });
+  });
+
+  it('binds the websocket server to the configured host', async () => {
+    gateway = new UcpGateway({
+      port: 0,
+      host: '127.0.0.1',
+      hostId: asHostId('test-host'),
+      hostName: 'QA Bridge',
+      commandLedger: {
+        accept: () => 'accepted',
+        markDispatched: () => undefined,
+        markComplete: () => undefined,
+        markFailed: () => undefined,
+      } as any,
+      resolveAdapter: () => undefined,
+      snapshots: {} as any,
+      journal: {} as any,
+      db: createFakeDb() as any,
+      allowInsecureLegacyMode: true,
+    });
+
+    await gateway.start();
+
+    expect(gateway.host).toBe('127.0.0.1');
+  });
 });
 
 describe('UcpGateway legacy routing', () => {
@@ -583,6 +641,61 @@ describe('UcpGateway legacy routing', () => {
     expect(replayed).toHaveLength(1);
     expect(replayed[0]?.sequence).toBe(5);
     expect(replayed[0]?.payload).toEqual({ summary: 'newer event' });
+
+    ws.close();
+  });
+
+  it('preserves plaintext broadcast behavior in explicit legacy mode', async () => {
+    gateway = new UcpGateway({
+      port: 0,
+      hostId: asHostId('test-host'),
+      commandLedger: {
+        accept: () => 'accepted',
+        markDispatched: () => undefined,
+        markComplete: () => undefined,
+        markFailed: () => undefined,
+      } as any,
+      resolveAdapter: () => undefined,
+      snapshots: {} as any,
+      journal: {} as any,
+      db: createFakeDb() as any,
+      allowInsecureLegacyMode: true,
+    });
+
+    const port = await gateway.start();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+
+    ws.send(JSON.stringify({ type: 'connection.initialize' }));
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for initialization')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'connection.initialized') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
+
+    const messagePromise = new Promise<UcpEnvelope>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for broadcast')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'session.updated') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve(msg);
+        }
+      });
+    });
+
+    gateway.broadcast(buildEnvelope('session.updated', { summary: 'legacy event' }));
+
+    const message = await messagePromise;
+    expect(message.type).toBe('session.updated');
+    expect(message.payload).toEqual({ summary: 'legacy event' });
 
     ws.close();
   });
