@@ -1,0 +1,96 @@
+# Task 1 Report
+
+## Task
+- Task ID: Task 1
+- Title: Bridge runtime selection and adapter registration
+- Owner role: Bridge agent
+- Date: Tuesday, July 21, 2026
+
+## Goal
+- Make the bridge start against exactly one selected runtime adapter: `fake`, `codex`, or `opencode`.
+- Route `command/start` and follow-up session commands through the selected adapter without changing the mobile protocol.
+- Persist the adapter's actual runtime type in bridge runtime and session rows.
+- Keep the fake or legacy path available for tests and local fallback.
+
+## Scope completed
+- Added bridge-local runtime selection parsing and runtime option typing.
+- Updated `BridgeApp` to accept a runtime selection option, register exactly one adapter at startup, and wire session registration into the gateway.
+- Updated `main.ts` to read `BRIDGE_RUNTIME` from the environment and pass it into `BridgeApp`.
+- Updated `AdapterManager` to:
+  - track a single selected adapter,
+  - resolve adapters per session,
+  - persist the adapter's actual `runtimeType`,
+  - persist runtime-instance and session mappings using the selected adapter.
+- Updated `UcpGateway` to:
+  - dispatch `command/start` to the selected adapter,
+  - register the new session with the adapter manager,
+  - resolve follow-up commands through the same adapter,
+  - fail non-start commands cleanly when `sessionId` is missing.
+- Added focused unit coverage for:
+  - runtime selector parsing,
+  - adapter-manager runtime persistence and session routing,
+  - gateway start and follow-up command routing.
+- Fixed the `apps/bridge` importer block in `pnpm-lock.yaml` so it matches the bridge package dependencies.
+
+## Files changed
+- `apps/bridge/package.json`
+- `apps/bridge/src/adapter-manager.ts`
+- `apps/bridge/src/bridge-app.ts`
+- `apps/bridge/src/index.ts`
+- `apps/bridge/src/main.ts`
+- `apps/bridge/src/runtime-selection.ts`
+- `apps/bridge/src/ucp-gateway.ts`
+- `apps/bridge/src/__tests__/adapter-manager.test.ts`
+- `apps/bridge/src/__tests__/bridge-app.test.ts`
+- `apps/bridge/src/__tests__/runtime-selection.test.ts`
+- `apps/bridge/src/__tests__/ucp-gateway.test.ts`
+- `pnpm-lock.yaml`
+
+## Key implementation notes
+- The bridge process now owns one active runtime adapter per process via `BridgeAppConfig.runtime`.
+- The fake runtime remains the default selector when `BRIDGE_RUNTIME` is unset.
+- The fake demo session auto-start remains limited to `fake` mode.
+- Runtime rows now persist the adapter's true runtime type instead of hardcoding `codex`.
+- Session-to-adapter resolution is now explicit through `AdapterManager.recordSessionStart()` and `AdapterManager.getAdapterForSession()`.
+- Secure startup behavior was preserved; runtime selection did not change pairing or encrypted transport paths.
+
+## Tests run
+- Command:
+  - `export PATH="/Users/meharaj/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH"; ./node_modules/.bin/vitest run src/__tests__/runtime-selection.test.ts src/__tests__/adapter-manager.test.ts src/__tests__/ucp-gateway.test.ts`
+- Result:
+  - `3` test files passed
+  - `12` tests passed
+
+- Command:
+  - `export PATH="/Users/meharaj/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH"; ./node_modules/.bin/tsc --project tsconfig.json --noEmit`
+- Result:
+  - passed with exit code `0`
+
+## Tests not run
+- The full bridge test suite was not used as the task gate.
+- Focus stayed on runtime-selection and routing coverage plus bridge package typecheck, which matches the task's required focused bridge verification.
+
+## Environment issues encountered
+- Initial verification was blocked by disk exhaustion and temporary `ENOSPC` failures in the workspace.
+- Native `better-sqlite3` loading also failed in the broader existing bridge tests, so the task verification was narrowed to pure unit tests around the changed runtime-selection code paths.
+- After narrowing the verification target, the required focused tests and typecheck completed successfully.
+
+## Security and privacy impact
+- No runtime credentials were moved into mobile, relay, or logs.
+- No transport, pairing, or encryption behavior was weakened.
+- Runtime selection remains bridge-local and process-local.
+
+## Accessibility impact
+- None. No mobile UI or user-facing accessibility surface changed in this task.
+
+## Acceptance criteria status
+- [x] `BridgeApp` accepts a runtime selection option and uses it to choose one adapter at startup.
+- [x] `main.ts` reads a runtime selector from the environment and passes it through to `BridgeApp`.
+- [x] The bridge can start in `fake`, `codex`, or `opencode` mode without changing the mobile client protocol.
+- [x] `command/start` dispatches to the selected adapter, and follow-up commands for that session resolve to the same adapter.
+- [x] Runtime rows and session rows persist the adapter's actual runtime type instead of a hardcoded value.
+- [x] The fake or legacy path remains available for tests and local fallback.
+- [x] Bridge tests cover runtime selection and continue to pass for the focused runtime-selection verification set.
+
+## Remaining concerns
+- `apps/bridge` is currently an untracked tree in this repository state, so the commit must stage only the intended bridge source and config files, not generated artifacts like `dist/`, `.turbo/`, `node_modules/`, or `bridge.db`.

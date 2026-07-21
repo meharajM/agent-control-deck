@@ -1,0 +1,398 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { EventEmitter } from 'node:events';
+import WebSocket from 'ws';
+import { UcpGateway } from '../ucp-gateway.js';
+import { asHostId, asMessageId, asSessionId, asTimestamp, type UcpEnvelope } from '@agent-deck/protocol';
+import {
+  decryptFrame,
+  deriveSessionKey,
+  encryptFrame,
+  generateIdentityKeyPair,
+  type EncryptedFrame,
+} from '@agent-deck/crypto';
+import type { ProbeResult, ReconcileResult, RuntimeAdapter, StartSessionParams } from '@agent-deck/adapter-contract';
+
+function buildEnvelope(type: string, payload: Record<string, unknown>, sessionId = asSessionId('session-1')): UcpEnvelope {
+  return {
+    protocol: 'ucp',
+    version: 1,
+    messageId: asMessageId(`test-${Math.random().toString(36).slice(2)}`),
+    type,
+    timestamp: asTimestamp(new Date().toISOString()),
+    hostId: asHostId('test-host'),
+    sessionId,
+    payload,
+  };
+}
+
+function waitForFrame(ws: WebSocket, timeout = 2000): Promise<EncryptedFrame> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout waiting for frame')), timeout);
+    ws.once('message', (data) => {
+      clearTimeout(timer);
+      resolve(JSON.parse(String(data)) as EncryptedFrame);
+    });
+  });
+}
+
+function waitForClose(ws: WebSocket, timeout = 2000): Promise<{ code: number; reason: string }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout waiting for close')), timeout);
+    ws.once('close', (code, reason) => {
+      clearTimeout(timer);
+      resolve({ code, reason: String(reason) });
+    });
+  });
+}
+
+function createFakeDb() {
+  return {
+    prepare(sql: string) {
+      if (sql.includes('FROM event_journal') && sql.includes('MAX(sequence)')) {
+        return {
+          get: () => ({ seq: 0 }),
+          all: () => [],
+          run: () => ({ changes: 0 }),
+        };
+      }
+
+      if (sql.includes('FROM event_journal')) {
+        return {
+          get: () => undefined,
+          all: () => [],
+          run: () => ({ changes: 0 }),
+        };
+      }
+
+      if (sql.includes('FROM sessions')) {
+        return {
+          get: () => undefined,
+          all: () => [],
+          run: () => ({ changes: 0 }),
+        };
+      }
+
+      if (sql.includes('FROM approvals')) {
+        return {
+          get: () => undefined,
+          all: () => [],
+          run: () => ({ changes: 0 }),
+        };
+      }
+
+      if (sql.includes('FROM questions')) {
+        return {
+          get: () => undefined,
+          all: () => [],
+          run: () => ({ changes: 0 }),
+        };
+      }
+
+      throw new Error(`Unhandled SQL in gateway fake DB: ${sql}`);
+    },
+  };
+}
+
+class RoutingTestAdapter extends EventEmitter implements RuntimeAdapter {
+  readonly runtimeType = 'opencode' as const;
+  readonly adapterVersion = 'test';
+  readonly sendInstructionCalls: Array<{ sessionId: string; text: string; idempotencyKey: string }> = [];
+
+  async probe(): Promise<ProbeResult> {
+    return { available: true, version: 'test' };
+  }
+
+  async startSession(_params: StartSessionParams): Promise<string> {
+    return 'session-from-start';
+  }
+
+  async sendInstruction(sessionId: string, text: string, idempotencyKey: string): Promise<void> {
+    this.sendInstructionCalls.push({ sessionId, text, idempotencyKey });
+  }
+
+  async cancelSession(): Promise<void> {}
+
+  async resolveApproval(): Promise<void> {}
+
+  async answerQuestion(): Promise<void> {}
+
+  async reconcile(): Promise<ReconcileResult> {
+    return { sessionExists: true, state: 'running' };
+  }
+
+  async dispose(): Promise<void> {
+    this.removeAllListeners();
+  }
+}
+
+describe('UcpGateway secure mode', () => {
+  let gateway: UcpGateway | undefined;
+
+  afterEach(() => {
+    gateway?.stop();
+  });
+
+  async function createGateway() {
+    const hostKeys = await generateIdentityKeyPair();
+    const pairedDevices = new Map<string, { deviceId: string; devicePublicKey: string; deviceName: string }>();
+    const revokedKeys = new Set<string>();
+    const pairingNonces = new Set(['pairing-nonce-1']);
+
+    gateway = new UcpGateway({
+      port: 0,
+      hostId: asHostId('test-host'),
+      hostName: 'QA Bridge',
+      hostPublicKey: hostKeys.publicKeyBase64,
+      hostPrivateKey: hostKeys.privateKeyBase64,
+      commandLedger: {
+        accept: () => 'accepted',
+        markDispatched: () => undefined,
+        markComplete: () => undefined,
+        markFailed: () => undefined,
+      } as any,
+      resolveAdapter: () => undefined,
+      snapshots: {} as any,
+      journal: {} as any,
+      db: createFakeDb() as any,
+      validateDevice: (devicePublicKey) => pairedDevices.get(devicePublicKey) ?? null,
+      completePairing: (devicePublicKey, deviceName, pairingNonce) => {
+        if (!pairingNonces.delete(pairingNonce)) {
+          throw new Error('Invalid pairing nonce');
+        }
+        const grant = {
+          deviceId: `device-${pairedDevices.size + 1}`,
+          devicePublicKey,
+          deviceName,
+        };
+        pairedDevices.set(devicePublicKey, grant);
+        return grant;
+      },
+      isDeviceRevoked: (devicePublicKey) => revokedKeys.has(devicePublicKey),
+    });
+
+    const port = await gateway.start();
+    return {
+      port,
+      hostKeys,
+      pairedDevices,
+      revokedKeys,
+    };
+  }
+
+  it('pairs a new device and returns an encrypted initialized frame', async () => {
+    const { port, hostKeys, pairedDevices } = await createGateway();
+    const deviceKeys = await generateIdentityKeyPair();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+
+    ws.send(JSON.stringify({
+      type: 'connection.initialize',
+      payload: {
+        devicePublicKey: deviceKeys.publicKeyBase64,
+        deviceName: 'QA iPhone',
+        pairingNonce: 'pairing-nonce-1',
+      },
+    }));
+
+    const frame = await waitForFrame(ws);
+    const session = deriveSessionKey(deviceKeys.privateKeyBase64, hostKeys.publicKeyBase64);
+    const initialized = decryptFrame(frame, session.sessionKeyBase64) as unknown as UcpEnvelope;
+
+    expect(initialized.type).toBe('connection.initialized');
+    expect(initialized.hostId).toBe('test-host');
+    expect(pairedDevices.get(deviceKeys.publicKeyBase64)?.deviceName).toBe('QA iPhone');
+    ws.close();
+  });
+
+  it('rejects an unpaired device without a valid pairing nonce', async () => {
+    const { port } = await createGateway();
+    const deviceKeys = await generateIdentityKeyPair();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+
+    const closePromise = waitForClose(ws);
+    ws.send(JSON.stringify({
+      type: 'connection.initialize',
+      payload: {
+        devicePublicKey: deviceKeys.publicKeyBase64,
+        deviceName: 'Unknown Device',
+      },
+    }));
+
+    const closed = await closePromise;
+    expect(closed.code).toBe(4003);
+  });
+
+  it('rejects replayed encrypted frames by sequence number', async () => {
+    const { port, hostKeys } = await createGateway();
+    const deviceKeys = await generateIdentityKeyPair();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+
+    ws.send(JSON.stringify({
+      type: 'connection.initialize',
+      payload: {
+        devicePublicKey: deviceKeys.publicKeyBase64,
+        deviceName: 'Replay Test',
+        pairingNonce: 'pairing-nonce-1',
+      },
+    }));
+
+    await waitForFrame(ws);
+    const session = deriveSessionKey(deviceKeys.privateKeyBase64, hostKeys.publicKeyBase64);
+    const command = buildEnvelope('command/send', {
+      idempotencyKey: 'idem-1',
+      text: 'test',
+    });
+    const encrypted = encryptFrame(command as unknown as Record<string, unknown>, session.sessionKeyBase64, 1);
+
+    ws.send(JSON.stringify(encrypted));
+    const closePromise = waitForClose(ws);
+    ws.send(JSON.stringify(encrypted));
+
+    const closed = await closePromise;
+    expect(closed.code).toBe(4009);
+  });
+
+  it('disconnects active clients when their device is revoked', async () => {
+    const { port, hostKeys } = await createGateway();
+    const deviceKeys = await generateIdentityKeyPair();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+
+    ws.send(JSON.stringify({
+      type: 'connection.initialize',
+      payload: {
+        devicePublicKey: deviceKeys.publicKeyBase64,
+        deviceName: 'Revocation Test',
+        pairingNonce: 'pairing-nonce-1',
+      },
+    }));
+
+    const frame = await waitForFrame(ws);
+    const session = deriveSessionKey(deviceKeys.privateKeyBase64, hostKeys.publicKeyBase64);
+    const initialized = decryptFrame(frame, session.sessionKeyBase64) as unknown as UcpEnvelope;
+    expect(initialized.type).toBe('connection.initialized');
+
+    const closePromise = waitForClose(ws);
+    gateway!.disconnectDevice(deviceKeys.publicKeyBase64, 'Device revoked');
+    const closed = await closePromise;
+
+    expect(closed.code).toBe(4005);
+    expect(closed.reason).toBe('Device revoked');
+  });
+});
+
+describe('UcpGateway legacy routing', () => {
+  let gateway: UcpGateway | undefined;
+
+  afterEach(() => {
+    gateway?.stop();
+  });
+
+  it('routes command/start and follow-up session commands to the selected adapter', async () => {
+    const adapter = new RoutingTestAdapter();
+    const knownSessions = new Set<string>();
+
+    gateway = new UcpGateway({
+      port: 0,
+      hostId: asHostId('test-host'),
+      commandLedger: {
+        accept: () => 'accepted',
+        markDispatched: () => undefined,
+        markComplete: () => undefined,
+        markFailed: () => undefined,
+      } as any,
+      resolveAdapter: (sessionId) => {
+        if (!sessionId) return adapter;
+        return knownSessions.has(sessionId) ? adapter : undefined;
+      },
+      registerSession: (sessionId) => {
+        knownSessions.add(sessionId);
+      },
+      snapshots: {} as any,
+      journal: {} as any,
+      db: createFakeDb() as any,
+      allowInsecureLegacyMode: true,
+    });
+
+    const port = await gateway.start();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+
+    ws.send(JSON.stringify({ type: 'connection.initialize' }));
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for initialization')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'connection.initialized') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
+
+    ws.send(JSON.stringify({
+      protocol: 'ucp',
+      version: 1,
+      messageId: asMessageId('start-message'),
+      type: 'command/start',
+      timestamp: asTimestamp(new Date().toISOString()),
+      hostId: asHostId('test-host'),
+      correlationId: 'corr-start',
+      payload: {
+        idempotencyKey: 'idem-start',
+        instruction: 'Start selected runtime',
+      },
+    }));
+
+    const startedSessionId = await new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for start ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-start') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve(String((msg.payload as Record<string, unknown>).sessionId));
+        }
+      });
+    });
+
+    expect(startedSessionId).toBe('session-from-start');
+
+    ws.send(JSON.stringify({
+      protocol: 'ucp',
+      version: 1,
+      messageId: asMessageId('send-message'),
+      type: 'command/send',
+      timestamp: asTimestamp(new Date().toISOString()),
+      hostId: asHostId('test-host'),
+      sessionId: startedSessionId,
+      correlationId: 'corr-send',
+      payload: {
+        idempotencyKey: 'idem-send',
+        text: 'Follow-up instruction',
+      },
+    }));
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for send ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-send') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
+
+    expect(adapter.sendInstructionCalls).toHaveLength(1);
+    expect(adapter.sendInstructionCalls[0]?.sessionId).toBe('session-from-start');
+    expect(adapter.sendInstructionCalls[0]?.text).toBe('Follow-up instruction');
+    expect(typeof adapter.sendInstructionCalls[0]?.idempotencyKey).toBe('string');
+
+    ws.close();
+  });
+});
