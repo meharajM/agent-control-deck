@@ -333,7 +333,8 @@ export class UcpGateway {
         if (this.isInitializeMessage(msg)) {
           initialized = true;
           this.unauthenticated.add(ws);
-          lastSyncSequence = Number((msg as Record<string, unknown>).lastSyncSequence ?? 0);
+          const payload = (msg as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+          lastSyncSequence = Number(payload?.lastSyncSequence ?? 0);
           this.sendToClient(ws, this.buildEnvelope('connection.initialized', { hostId: this.config.hostId }, undefined));
           this.sendSnapshotLegacy(ws);
           this.replayEventsLegacy(ws, lastSyncSequence);
@@ -554,7 +555,16 @@ export class UcpGateway {
     }
 
     this.config.commandLedger.markDispatched(commandId);
-    this.dispatchCommand(adapter, sessionId, envelope.type, payload, commandId, client, envelope.correlationId);
+    this.dispatchCommand(
+      adapter,
+      sessionId,
+      envelope.type,
+      payload,
+      commandId,
+      idempotencyKey,
+      client,
+      envelope.correlationId,
+    );
   }
 
   private handleMessageLegacy(ws: WebSocket, msg: unknown): void {
@@ -601,7 +611,16 @@ export class UcpGateway {
     }
 
     this.config.commandLedger.markDispatched(commandId);
-    this.dispatchCommandLegacy(adapter, sessionId, envelope.type, payload, commandId, ws, envelope.correlationId);
+    this.dispatchCommandLegacy(
+      adapter,
+      sessionId,
+      envelope.type,
+      payload,
+      commandId,
+      idempotencyKey,
+      ws,
+      envelope.correlationId,
+    );
   }
 
   private async dispatchCommand(
@@ -610,6 +629,7 @@ export class UcpGateway {
     type: string,
     payload: Record<string, unknown>,
     commandId: string,
+    idempotencyKey: string,
     client: AuthenticatedClient,
     correlationId?: string,
   ): Promise<void> {
@@ -627,25 +647,25 @@ export class UcpGateway {
           const activeSessionId = this.requireSessionId(sessionId, type);
           const approvalId = String(payload.approvalId ?? '');
           const decision = String(payload.decision ?? 'approved');
-          await adapter.resolveApproval(activeSessionId, approvalId, decision, commandId);
+          await adapter.resolveApproval(activeSessionId, approvalId, decision, idempotencyKey);
           break;
         }
         case 'command/send': {
           const activeSessionId = this.requireSessionId(sessionId, type);
           const text = String(payload.text ?? '');
-          await adapter.sendInstruction(activeSessionId, text, commandId);
+          await adapter.sendInstruction(activeSessionId, text, idempotencyKey);
           break;
         }
         case 'command/cancel': {
           const activeSessionId = this.requireSessionId(sessionId, type);
-          await adapter.cancelSession(activeSessionId, commandId);
+          await adapter.cancelSession(activeSessionId, idempotencyKey);
           break;
         }
         case 'command/answer': {
           const activeSessionId = this.requireSessionId(sessionId, type);
           const questionId = String(payload.questionId ?? '');
           const answer = payload.answer;
-          await adapter.answerQuestion(activeSessionId, questionId, answer, commandId);
+          await adapter.answerQuestion(activeSessionId, questionId, answer, idempotencyKey);
           break;
         }
         default:
@@ -668,6 +688,7 @@ export class UcpGateway {
     type: string,
     payload: Record<string, unknown>,
     commandId: string,
+    idempotencyKey: string,
     ws: WebSocket,
     correlationId?: string,
   ): Promise<void> {
@@ -685,25 +706,25 @@ export class UcpGateway {
           const activeSessionId = this.requireSessionId(sessionId, type);
           const approvalId = String(payload.approvalId ?? '');
           const decision = String(payload.decision ?? 'approved');
-          await adapter.resolveApproval(activeSessionId, approvalId, decision, commandId);
+          await adapter.resolveApproval(activeSessionId, approvalId, decision, idempotencyKey);
           break;
         }
         case 'command/send': {
           const activeSessionId = this.requireSessionId(sessionId, type);
           const text = String(payload.text ?? '');
-          await adapter.sendInstruction(activeSessionId, text, commandId);
+          await adapter.sendInstruction(activeSessionId, text, idempotencyKey);
           break;
         }
         case 'command/cancel': {
           const activeSessionId = this.requireSessionId(sessionId, type);
-          await adapter.cancelSession(activeSessionId, commandId);
+          await adapter.cancelSession(activeSessionId, idempotencyKey);
           break;
         }
         case 'command/answer': {
           const activeSessionId = this.requireSessionId(sessionId, type);
           const questionId = String(payload.questionId ?? '');
           const answer = payload.answer;
-          await adapter.answerQuestion(activeSessionId, questionId, answer, commandId);
+          await adapter.answerQuestion(activeSessionId, questionId, answer, idempotencyKey);
           break;
         }
         default:

@@ -259,7 +259,7 @@ describe('BridgeApp', () => {
     expect(adapter.sendInstruction).toHaveBeenCalledWith(
       startedSessionId,
       'Follow-up instruction',
-      expect.any(String),
+      'idem-send-1',
     );
 
     ws.close();

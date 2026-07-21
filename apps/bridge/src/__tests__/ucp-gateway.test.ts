@@ -46,11 +46,17 @@ function waitForClose(ws: WebSocket, timeout = 2000): Promise<{ code: number; re
 }
 
 function createFakeDb() {
+  return createFakeDbWithEvents();
+}
+
+function createFakeDbWithEvents(
+  eventRows: Array<{ sequence: number; type: string; payload_json: string; session_id: string | null }> = [],
+) {
   return {
     prepare(sql: string) {
       if (sql.includes('FROM event_journal') && sql.includes('MAX(sequence)')) {
         return {
-          get: () => ({ seq: 0 }),
+          get: () => ({ seq: eventRows.at(-1)?.sequence ?? 0 }),
           all: () => [],
           run: () => ({ changes: 0 }),
         };
@@ -59,7 +65,8 @@ function createFakeDb() {
       if (sql.includes('FROM event_journal')) {
         return {
           get: () => undefined,
-          all: () => [],
+          all: ({ afterSequence }: { afterSequence: number }) =>
+            eventRows.filter((row) => row.sequence > afterSequence),
           run: () => ({ changes: 0 }),
         };
       }
@@ -97,6 +104,9 @@ class RoutingTestAdapter extends EventEmitter implements RuntimeAdapter {
   readonly runtimeType = 'opencode' as const;
   readonly adapterVersion = 'test';
   readonly sendInstructionCalls: Array<{ sessionId: string; text: string; idempotencyKey: string }> = [];
+  readonly resolveApprovalCalls: Array<{ sessionId: string; approvalId: string; decision: string; idempotencyKey: string }> = [];
+  readonly cancelSessionCalls: Array<{ sessionId: string; idempotencyKey: string }> = [];
+  readonly answerQuestionCalls: Array<{ sessionId: string; questionId: string; answer: unknown; idempotencyKey: string }> = [];
 
   async probe(): Promise<ProbeResult> {
     return { available: true, version: 'test' };
@@ -110,11 +120,17 @@ class RoutingTestAdapter extends EventEmitter implements RuntimeAdapter {
     this.sendInstructionCalls.push({ sessionId, text, idempotencyKey });
   }
 
-  async cancelSession(): Promise<void> {}
+  async cancelSession(sessionId: string, idempotencyKey: string): Promise<void> {
+    this.cancelSessionCalls.push({ sessionId, idempotencyKey });
+  }
 
-  async resolveApproval(): Promise<void> {}
+  async resolveApproval(sessionId: string, approvalId: string, decision: string, idempotencyKey: string): Promise<void> {
+    this.resolveApprovalCalls.push({ sessionId, approvalId, decision, idempotencyKey });
+  }
 
-  async answerQuestion(): Promise<void> {}
+  async answerQuestion(sessionId: string, questionId: string, answer: unknown, idempotencyKey: string): Promise<void> {
+    this.answerQuestionCalls.push({ sessionId, questionId, answer, idempotencyKey });
+  }
 
   async reconcile(): Promise<ReconcileResult> {
     return { sessionExists: true, state: 'running' };
@@ -391,7 +407,182 @@ describe('UcpGateway legacy routing', () => {
     expect(adapter.sendInstructionCalls).toHaveLength(1);
     expect(adapter.sendInstructionCalls[0]?.sessionId).toBe('session-from-start');
     expect(adapter.sendInstructionCalls[0]?.text).toBe('Follow-up instruction');
-    expect(typeof adapter.sendInstructionCalls[0]?.idempotencyKey).toBe('string');
+    expect(adapter.sendInstructionCalls[0]?.idempotencyKey).toBe('idem-send');
+
+    ws.send(JSON.stringify({
+      protocol: 'ucp',
+      version: 1,
+      messageId: asMessageId('approve-message'),
+      type: 'command/approve',
+      timestamp: asTimestamp(new Date().toISOString()),
+      hostId: asHostId('test-host'),
+      sessionId: startedSessionId,
+      correlationId: 'corr-approve',
+      payload: {
+        idempotencyKey: 'idem-approve',
+        approvalId: 'approval-1',
+        decision: 'approved',
+      },
+    }));
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for approve ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-approve') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
+
+    expect(adapter.resolveApprovalCalls).toEqual([
+      {
+        sessionId: startedSessionId,
+        approvalId: 'approval-1',
+        decision: 'approved',
+        idempotencyKey: 'idem-approve',
+      },
+    ]);
+
+    ws.send(JSON.stringify({
+      protocol: 'ucp',
+      version: 1,
+      messageId: asMessageId('cancel-message'),
+      type: 'command/cancel',
+      timestamp: asTimestamp(new Date().toISOString()),
+      hostId: asHostId('test-host'),
+      sessionId: startedSessionId,
+      correlationId: 'corr-cancel',
+      payload: {
+        idempotencyKey: 'idem-cancel',
+      },
+    }));
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for cancel ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-cancel') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
+
+    expect(adapter.cancelSessionCalls).toEqual([
+      {
+        sessionId: startedSessionId,
+        idempotencyKey: 'idem-cancel',
+      },
+    ]);
+
+    ws.send(JSON.stringify({
+      protocol: 'ucp',
+      version: 1,
+      messageId: asMessageId('answer-message'),
+      type: 'command/answer',
+      timestamp: asTimestamp(new Date().toISOString()),
+      hostId: asHostId('test-host'),
+      sessionId: startedSessionId,
+      correlationId: 'corr-answer',
+      payload: {
+        idempotencyKey: 'idem-answer',
+        questionId: 'question-1',
+        answer: { value: 'yes' },
+      },
+    }));
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for answer ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-answer') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
+
+    expect(adapter.answerQuestionCalls).toEqual([
+      {
+        sessionId: startedSessionId,
+        questionId: 'question-1',
+        answer: { value: 'yes' },
+        idempotencyKey: 'idem-answer',
+      },
+    ]);
+
+    ws.close();
+  });
+
+  it('replays only events after payload.lastSyncSequence during legacy reconnect', async () => {
+    gateway = new UcpGateway({
+      port: 0,
+      hostId: asHostId('test-host'),
+      commandLedger: {
+        accept: () => 'accepted',
+        markDispatched: () => undefined,
+        markComplete: () => undefined,
+        markFailed: () => undefined,
+      } as any,
+      resolveAdapter: () => undefined,
+      snapshots: {} as any,
+      journal: {} as any,
+      db: createFakeDbWithEvents([
+        {
+          sequence: 2,
+          type: 'session.updated',
+          payload_json: JSON.stringify({ summary: 'older event' }),
+          session_id: 'session-1',
+        },
+        {
+          sequence: 5,
+          type: 'session.updated',
+          payload_json: JSON.stringify({ summary: 'newer event' }),
+          session_id: 'session-1',
+        },
+      ]) as any,
+      allowInsecureLegacyMode: true,
+    });
+
+    const port = await gateway.start();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+
+    const received: UcpEnvelope[] = [];
+    ws.on('message', (data) => {
+      received.push(JSON.parse(String(data)) as UcpEnvelope);
+    });
+
+    ws.send(JSON.stringify({
+      type: 'connection.initialize',
+      payload: {
+        lastSyncSequence: 3,
+      },
+    }));
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for replayed event')), 2000);
+      const poll = () => {
+        const replayed = received.filter((message) => message.type === 'session.updated');
+        if (replayed.length === 1) {
+          clearTimeout(timer);
+          resolve();
+          return;
+        }
+        setTimeout(poll, 10);
+      };
+      poll();
+    });
+
+    const replayed = received.filter((message) => message.type === 'session.updated');
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]?.sequence).toBe(5);
+    expect(replayed[0]?.payload).toEqual({ summary: 'newer event' });
 
     ws.close();
   });

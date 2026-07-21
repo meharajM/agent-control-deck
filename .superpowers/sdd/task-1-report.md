@@ -45,6 +45,7 @@
 - `apps/bridge/src/__tests__/runtime-selection.test.ts`
 - `apps/bridge/src/__tests__/ucp-gateway.test.ts`
 - `pnpm-lock.yaml`
+- `.superpowers/sdd/task-1-report.md`
 
 ## Key implementation notes
 - The bridge process now owns one active runtime adapter per process via `BridgeAppConfig.runtime`.
@@ -94,3 +95,42 @@
 
 ## Remaining concerns
 - `apps/bridge` is currently an untracked tree in this repository state, so the commit must stage only the intended bridge source and config files, not generated artifacts like `dist/`, `.turbo/`, `node_modules/`, or `bridge.db`.
+
+---
+
+## Fix report — Tuesday, July 21, 2026
+
+### Review findings addressed
+- Threaded the inbound `payload.idempotencyKey` through `dispatchCommand()` and `dispatchCommandLegacy()`, and now pass that client-supplied value to `resolveApproval()`, `sendInstruction()`, `cancelSession()`, and `answerQuestion()`.
+- Removed eager real-adapter imports from module load in `bridge-app.ts`; Codex and OpenCode are now lazy-loaded only when the selected runtime requires them, so `fake` mode no longer touches missing real-adapter build artifacts during startup.
+- Fixed legacy reconnect to read `payload.lastSyncSequence` from `connection.initialize` and added a regression test proving replay resumes after the supplied sequence.
+- Corrected the report file list to include this report file itself.
+
+### Files changed for the fix
+- `apps/bridge/src/bridge-app.ts`
+- `apps/bridge/src/ucp-gateway.ts`
+- `apps/bridge/src/__tests__/bridge-app.test.ts`
+- `apps/bridge/src/__tests__/ucp-gateway.test.ts`
+- `.superpowers/sdd/task-1-report.md`
+
+### Focused verification
+- Command:
+  - `./node_modules/.bin/vitest run src/__tests__/ucp-gateway.test.ts`
+- Result:
+  - `1` test file passed
+  - `6` tests passed
+
+- Command:
+  - `./node_modules/.bin/vitest run src/__tests__/bridge-app.test.ts`
+- Result:
+  - blocked by existing native dependency issue loading `better-sqlite3`
+  - failure occurs before the edited assertions run
+
+- Command:
+  - `./node_modules/.bin/tsc --project tsconfig.json --noEmit`
+- Result:
+  - passed with exit code `0`
+
+### Notes
+- The `bridge-app` focused test remains environment-blocked by the missing `better-sqlite3` native binding in this workspace. That issue predates this fix and is unchanged by the patch.
+- No mobile protocol, pairing, encryption, or runtime surface was changed.

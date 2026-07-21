@@ -12,8 +12,6 @@ import { AdapterManager } from './adapter-manager.js';
 import type { BridgeRuntimeSelection } from './runtime-selection.js';
 import { UcpGateway } from './ucp-gateway.js';
 import { BRIDGE_RUNTIME_OPTIONS } from './runtime-selection.js';
-import { CodexAdapter } from '../../../packages/adapter-codex/dist/index.js';
-import { OpenCodeAdapter } from '../../../packages/adapter-opencode/dist/index.js';
 
 export interface BridgeAppConfig {
   port: number;
@@ -22,7 +20,7 @@ export interface BridgeAppConfig {
   interface?: string;
   allowInsecureLegacyMode?: boolean;
   runtime?: BridgeRuntimeSelection;
-  createAdapter?: (runtime: BridgeRuntimeSelection) => RuntimeAdapter;
+  createAdapter?: (runtime: BridgeRuntimeSelection) => RuntimeAdapter | Promise<RuntimeAdapter>;
 }
 
 interface PersistedHostIdentity extends IdentityKeyPair {
@@ -106,7 +104,7 @@ export class BridgeApp {
           }),
     });
 
-    await this.adapterManager.registerAdapter(this.runtime, this.createAdapter(this.runtime));
+    await this.adapterManager.registerAdapter(this.runtime, await this.createAdapter(this.runtime));
     await this.gateway.start();
 
     if (bindHost === '0.0.0.0') {
@@ -213,18 +211,22 @@ export class BridgeApp {
     return identity;
   }
 
-  private createAdapter(runtime: BridgeRuntimeSelection): RuntimeAdapter {
+  private async createAdapter(runtime: BridgeRuntimeSelection): Promise<RuntimeAdapter> {
     if (this.config.createAdapter) {
-      return this.config.createAdapter(runtime);
+      return await this.config.createAdapter(runtime);
     }
 
     switch (runtime) {
       case 'fake':
         return new FakeAdapter();
-      case 'codex':
+      case 'codex': {
+        const { CodexAdapter } = await import('../../../packages/adapter-codex/dist/index.js');
         return new CodexAdapter();
-      case 'opencode':
+      }
+      case 'opencode': {
+        const { OpenCodeAdapter } = await import('../../../packages/adapter-opencode/dist/index.js');
         return new OpenCodeAdapter();
+      }
     }
   }
 }
