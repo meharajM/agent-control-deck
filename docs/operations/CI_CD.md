@@ -46,7 +46,7 @@
 
 - Codex latest tested version integration
 - OpenCode latest tested version integration
-- Claude SDK latest compatible version integration
+- Claude SDK latest compatible version integration (post-v1, non-blocking)
 - Seven-day or accelerated bridge endurance
 - Dependency vulnerability scan
 - Installer build and install/uninstall tests

@@ -42,11 +42,14 @@ function SessionTile({ session, onPress }: SessionTileProps) {
   const hasPending =
     session.pendingApprovalCount > 0 || session.pendingQuestionCount > 0;
 
+  const updatedAt = new Date(session.updatedAt);
+  const timeStr = updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
   return (
     <Pressable
       style={styles.tile}
       onPress={onPress}
-      accessibilityLabel={`Session: ${session.title}. Status: ${label}.${hasPending ? " Needs attention." : ""}`}
+      accessibilityLabel={`Session: ${session.title}. Status: ${label}. Updated ${timeStr}.${hasPending ? " Needs attention." : ""}`}
       accessibilityRole="button"
       accessibilityHint="Opens session detail"
     >
@@ -65,13 +68,16 @@ function SessionTile({ session, onPress }: SessionTileProps) {
           </View>
         ) : null}
       </View>
-      <Text
-        style={styles.stateLabel}
-        accessibilityRole="text"
-        accessibilityState={{ busy: session.state === "running" }}
-      >
-        {label}
-      </Text>
+      <View style={styles.tileMeta}>
+        <Text
+          style={styles.stateLabel}
+          accessibilityRole="text"
+          accessibilityState={{ busy: session.state === "running" }}
+        >
+          {label}
+        </Text>
+        <Text style={styles.timeLabel}>{timeStr}</Text>
+      </View>
       {session.currentAction !== null && session.currentAction !== "" ? (
         <Text style={styles.action} numberOfLines={2}>
           {session.currentAction}
@@ -146,7 +152,9 @@ const styles = StyleSheet.create({
   },
   tileRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   tileTitle: { fontSize: 16, fontWeight: "600", flex: 1 },
+  tileMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   stateLabel: { fontSize: 13, color: "#555", marginTop: 4 },
+  timeLabel: { fontSize: 12, color: "#999", marginTop: 4 },
   action: { fontSize: 13, color: "#333", marginTop: 4 },
   badge: {
     backgroundColor: "#e74c3c",

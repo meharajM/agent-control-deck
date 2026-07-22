@@ -15,11 +15,13 @@
 
 ## 2. Runtime adapter status
 
+V1 supports exactly Codex and OpenCode. Other adapters may be developed independently after the v1 release, but cannot be required to build, test, package, or launch v1.
+
 | Runtime | Release status | Required interface | Fallback |
 |---|---|---|---|
-| Codex | GA target | `codex app-server` stdio | Disable adapter with actionable doctor output |
-| OpenCode | GA target | loopback `opencode serve`, OpenAPI/SSE | Connect to explicit existing local server |
-| Claude | Beta | TypeScript Agent SDK `query()` | `pathToClaudeCodeExecutable`; disable unsupported capability |
+| Codex | V1 required | `codex app-server` stdio | Disable adapter with actionable doctor output |
+| OpenCode | V1 required | loopback `opencode serve`, OpenAPI/SSE | Connect to explicit existing local server |
+| Claude | Post-v1 | TypeScript Agent SDK `query()` | Evaluate separately after v1; disable unsupported capability |
 
 ## 3. Capability policy
 

@@ -7,7 +7,7 @@
 - Beta
 - Stable
 
-Runtime adapters may have independent compatibility releases while sharing the bridge version.
+The v1 bridge and mobile release support Codex and OpenCode only. Post-v1 runtime adapters may have independent compatibility releases while sharing the bridge version.
 
 ## 2. Bridge distribution
 
@@ -65,13 +65,15 @@ Provide:
 
 ## 6. Compatibility release process
 
-For each runtime release:
+For each v1 runtime release (Codex or OpenCode):
 
 1. Detect change in scheduled CI.
 2. Run adapter contract/integration suite.
 3. Update maximum-tested version.
 4. Publish adapter compatibility note.
 5. Disable unknown high-risk approval features when necessary.
+
+Post-v1 adapters follow the same process independently and do not block the v1 release.
 
 ## 7. Rollback
 
@@ -87,6 +89,7 @@ For each runtime release:
 - Security scan clean
 - Accessibility smoke test
 - Runtime matrix updated
+- Codex/OpenCode v1 compatibility evidence recorded
 - Changelog complete
 - Signed artifacts verified
 - Local-only operation smoke-tested with internet blocked

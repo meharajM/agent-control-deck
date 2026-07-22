@@ -8,7 +8,7 @@ Agent Deck is a minimal mobile supervision interface for coding agents. It delib
 
 ### Runtime fragmentation
 
-Codex, OpenCode, and Claude Code use different session models, event formats, permission mechanisms, and transports. The phone must not implement these protocols independently. A local host bridge normalizes them.
+Codex and OpenCode are the v1 runtimes and use different session models, event formats, permission mechanisms, and transports. The phone must not implement these protocols independently. A local host bridge normalizes them. The bridge remains extensible for post-v1 runtimes such as Claude Code, but those runtimes are outside the v1 product scope.
 
 ### Attention fragmentation
 

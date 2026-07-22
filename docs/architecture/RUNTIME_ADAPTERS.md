@@ -147,7 +147,7 @@ OpenCode user permission configuration remains authoritative. Setup may recommen
 - On reconnect, query sessions/status/messages/permissions/diffs.
 - Rebuild normalized state before accepting new commands.
 
-## 6. Claude adapter
+## 6. Post-v1 Claude adapter
 
 ### Primary mode: bridge-managed Agent SDK sessions
 
@@ -190,20 +190,22 @@ Allow user/project/local setting sources as explicitly configured so Claude skil
 
 Treat attachment to arbitrary independently launched Claude Code CLI sessions as experimental. Use only supported plugins/hooks/channels. Do not reverse engineer first-party remote-control protocols.
 
-## 7. Capability matrix for first release
+## 7. V1 capability matrix
 
-| Capability | Codex | OpenCode | Claude managed |
-|---|---:|---:|---:|
-| List sessions | GA | GA | Beta |
-| Create session | GA | GA | Beta |
-| Resume | GA | GA/derived | Beta |
-| Stream output | GA | GA | Beta |
-| In-flight steer | Native where available | Adapter-defined based on API | Limited by SDK flow |
-| Cancel | GA | GA | Beta |
-| Structured approvals | GA | GA | Beta |
-| Questions | GA where surfaced | API/event dependent | Beta |
-| Diff preview | Native/derived | Native | Derived/runtime tools |
-| Effort control | Capability dependent | Provider/model dependent | Permission/model dependent |
+| Capability | Codex | OpenCode |
+|---|---:|---:|
+| List sessions | Required | Required |
+| Create session | Required | Required |
+| Resume | Required | Required/derived |
+| Stream output | Required | Required |
+| In-flight steer | Native where available | Adapter-defined based on API |
+| Cancel | Required | Required |
+| Structured approvals | Required | Required |
+| Questions | Required where surfaced | API/event dependent |
+| Diff preview | Native/derived | Native |
+| Effort control | Capability dependent | Provider/model dependent |
+
+Claude managed sessions remain a post-v1 adapter target. Their capability matrix and beta acceptance criteria must not be used as v1 release evidence.
 
 ## 8. Compatibility policy
 

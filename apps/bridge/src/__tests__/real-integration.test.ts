@@ -131,7 +131,7 @@ describe('Real integration: BridgeApp end-to-end', () => {
   let app: BridgeApp;
 
   beforeEach(() => {
-    app = new BridgeApp({ port: 0, dbPath: ':memory:' });
+    app = createLegacyBridgeApp();
   });
 
   afterEach(() => {

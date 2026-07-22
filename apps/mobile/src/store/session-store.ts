@@ -4,6 +4,7 @@ import type {
   ApprovalRequestedPayload,
   ApprovalUpdatedPayload,
   ConnectionStatus,
+  HostSnapshotPayload,
   NormalizedApproval,
   NormalizedQuestion,
   NormalizedSession,
@@ -215,22 +216,22 @@ export const useSessionStore = create<SessionState>()((set) => ({
     set((state) => {
       switch (event.type) {
         case "session.created":
-          return { sessions: handleSessionCreated(state.sessions, event.payload) };
+          return { sessions: handleSessionCreated(state.sessions, event.payload as SessionCreatedPayload) };
 
         case "session.updated":
-          return { sessions: handleSessionUpdated(state.sessions, event.payload) };
+          return { sessions: handleSessionUpdated(state.sessions, event.payload as SessionUpdatedPayload) };
 
         case "session.state_changed":
-          return { sessions: handleSessionStateChanged(state.sessions, event.payload) };
+          return { sessions: handleSessionStateChanged(state.sessions, event.payload as SessionStateChangedPayload) };
 
         case "session.completed":
-          return { sessions: handleSessionCompleted(state.sessions, event.payload) };
+          return { sessions: handleSessionCompleted(state.sessions, event.payload as SessionCompletedPayload) };
 
         case "approval.requested":
           return {
             pendingApprovals: handleApprovalRequested(
               state.pendingApprovals,
-              event.payload
+              event.payload as ApprovalRequestedPayload
             ),
           };
 
@@ -238,7 +239,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
           return {
             pendingApprovals: handleApprovalUpdated(
               state.pendingApprovals,
-              event.payload
+              event.payload as ApprovalUpdatedPayload
             ),
           };
 
@@ -246,7 +247,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
           return {
             pendingApprovals: handleApprovalResolved(
               state.pendingApprovals,
-              event.payload
+              event.payload as ApprovalResolvedPayload
             ),
           };
 
@@ -254,7 +255,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
           return {
             pendingQuestions: handleQuestionRequested(
               state.pendingQuestions,
-              event.payload
+              event.payload as QuestionRequestedPayload
             ),
           };
 
@@ -262,12 +263,12 @@ export const useSessionStore = create<SessionState>()((set) => ({
           return {
             pendingQuestions: handleQuestionResolved(
               state.pendingQuestions,
-              event.payload
+              event.payload as QuestionResolvedPayload
             ),
           };
 
         case "host.snapshot": {
-          const snap = event.payload;
+          const snap = event.payload as HostSnapshotPayload;
           let sessions = {} as Record<string, NormalizedSession>;
           let pendingApprovals = {} as Record<string, NormalizedApproval>;
           let pendingQuestions = {} as Record<string, NormalizedQuestion>;

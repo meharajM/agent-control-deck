@@ -84,4 +84,50 @@ describe('FakeAdapter', () => {
     );
     await adapter.dispose();
   });
+
+  it('duplicate fault emits the same event more than once', async () => {
+    const adapter = new FakeAdapter([]);
+    const id = await adapter.startSession({});
+    const listener = vi.fn();
+    adapter.on('session_event', listener);
+
+    adapter.injectFault('duplicate');
+    await adapter.sendInstruction(id, 'test', 'idem-dup');
+    await new Promise((r) => setImmediate(r));
+
+    expect(listener).toHaveBeenCalledTimes(3);
+    await adapter.dispose();
+  });
+
+  it('drop fault suppresses the next emitted event', async () => {
+    const adapter = new FakeAdapter([]);
+    const id = await adapter.startSession({});
+    const listener = vi.fn();
+    adapter.on('session_event', listener);
+
+    adapter.injectFault('drop');
+    await adapter.sendInstruction(id, 'test', 'idem-drop');
+    await new Promise((r) => setImmediate(r));
+
+    expect(listener).not.toHaveBeenCalled();
+    await adapter.dispose();
+  });
+
+  it('reorder fault flushes buffered events in reverse order', async () => {
+    const adapter = new FakeAdapter([]);
+    const id = await adapter.startSession({});
+    const received: string[] = [];
+    adapter.on('session_event', (event: AdapterEvent) => {
+      received.push(String((event.payload as { text?: string }).text ?? event.type));
+    });
+
+    adapter.injectFault('reorder');
+    await adapter.sendInstruction(id, 'first', 'idem-1');
+    await adapter.sendInstruction(id, 'second', 'idem-2');
+    await adapter.sendInstruction(id, 'third', 'idem-3');
+    await new Promise((r) => setImmediate(r));
+
+    expect(received).toEqual(['third', 'second', 'first']);
+    await adapter.dispose();
+  });
 });

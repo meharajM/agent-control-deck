@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Alert } from "react-native";
+import { useRouter } from "expo-router";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -9,26 +11,59 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { connectToBridge, disconnectFromBridge } from "../../services/bridge-connection.js";
+import {
+  useConnectionStore,
+  type PairingStatus,
+} from "../../store/connection-store.js";
+import { promptBiometric } from "../../services/command-sender.js";
 
-/**
- * Pairing screen — placeholder for QR scan + manual URL entry.
- *
- * The full pairing flow (camera QR, cryptographic handshake, fingerprint
- * confirmation) is deferred to the security/networking agent task.
- * This scaffold provides the manual-URL entry path which is usable in
- * development and in no-camera environments.
- */
 export default function PairingScreen() {
   const [bridgeUrl, setBridgeUrl] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const router = useRouter();
+  const connStatus = useConnectionStore((s) => s.status);
+  const pairingStatus = useConnectionStore((s) => s.pairingStatus);
+  const hostName = useConnectionStore((s) => s.hostName);
 
   function handlePair() {
     Keyboard.dismiss();
-    // ponytail: actual UcpClient.connect() wired here once paired-device
-    // credential flow is available (security agent task).
-    // For now: validate the URL format and show feedback.
+    setConnecting(true);
+    try {
+      connectToBridge(bridgeUrl);
+      router.push("/sessions");
+    } catch (err) {
+      Alert.alert("Connection failed", err instanceof Error ? err.message : "Could not connect to bridge.");
+    } finally {
+      setConnecting(false);
+    }
   }
 
-  const canPair = bridgeUrl.startsWith("ws://") || bridgeUrl.startsWith("wss://");
+  function handleScanQr() {
+    router.push("/(pairing)/scan");
+  }
+
+  async function handleUnpair() {
+    const biometricOk = await promptBiometric("Authenticate to unpair this host");
+    if (!biometricOk) {
+      Alert.alert("Authentication required", "Biometric authentication is required to unpair.");
+      return;
+    }
+    disconnectFromBridge();
+    Alert.alert("Unpaired", "This device has been unpaired from the host.");
+  }
+
+  const canPair =
+    (bridgeUrl.startsWith("ws://") || bridgeUrl.startsWith("wss://")) &&
+    !connecting &&
+    connStatus !== "connecting";
+
+  const statusLabel: Record<PairingStatus, string> = {
+    not_paired: "Not paired",
+    pairing: "Pairing...",
+    paired: `Paired${hostName ? ` with ${hostName}` : ""}`,
+    failed: "Pairing failed",
+  };
 
   return (
     <KeyboardAvoidingView
@@ -44,25 +79,40 @@ export default function PairingScreen() {
           Pair a Host
         </Text>
 
+        {/* Pairing status */}
+        <View
+          style={styles.statusRow}
+          accessibilityLabel={`Pairing status: ${statusLabel[pairingStatus]}`}
+          accessibilityRole="text"
+        >
+          <View
+            style={[
+              styles.statusDot,
+              pairingStatus === "paired" && styles.statusDotGreen,
+              pairingStatus === "pairing" && styles.statusDotYellow,
+              pairingStatus === "failed" && styles.statusDotRed,
+            ]}
+          />
+          <Text style={styles.statusText}>{statusLabel[pairingStatus]}</Text>
+        </View>
+
         <Text style={styles.description}>
           Scan the QR code shown by the host bridge, or enter its address
           manually.
         </Text>
 
-        {/* QR scanner placeholder */}
-        <View
-          style={styles.qrPlaceholder}
-          accessibilityLabel="QR code scanner — camera required"
-          accessibilityRole="image"
-          accessibilityHint="Camera pairing will be available after permissions are granted"
+        {/* QR scanner button */}
+        <Pressable
+          style={styles.qrBtn}
+          onPress={handleScanQr}
+          accessibilityLabel="Scan host QR code to pair"
+          accessibilityRole="button"
+          accessibilityHint="Opens camera to scan a QR code from the host bridge"
         >
-          <Text style={styles.qrPlaceholderText}>QR scan (coming soon)</Text>
-        </View>
+          <Text style={styles.qrBtnText}>Scan QR Code</Text>
+        </Pressable>
 
-        <Text
-          style={styles.orLabel}
-          accessibilityRole="text"
-        >
+        <Text style={styles.orLabel} accessibilityRole="text">
           — or enter manually —
         </Text>
 
@@ -91,8 +141,23 @@ export default function PairingScreen() {
             canPair ? undefined : "Enter a valid ws:// or wss:// address first"
           }
         >
-          <Text style={styles.pairBtnText}>Connect</Text>
+          <Text style={styles.pairBtnText}>
+            {connecting || connStatus === "connecting" ? "Connecting..." : "Connect"}
+          </Text>
         </Pressable>
+
+        {/* Unpair button — only shown when paired */}
+        {pairingStatus === "paired" && (
+          <Pressable
+            style={styles.unpairBtn}
+            onPress={handleUnpair}
+            accessibilityLabel="Unpair from host"
+            accessibilityRole="button"
+            accessibilityHint="Requires biometric authentication"
+          >
+            <Text style={styles.unpairBtnText}>Unpair</Text>
+          </Pressable>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -107,6 +172,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   heading: { fontSize: 26, fontWeight: "700", color: "#111", marginBottom: 12 },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#aaa",
+    marginRight: 8,
+  },
+  statusDotGreen: { backgroundColor: "#34c759" },
+  statusDotYellow: { backgroundColor: "#ff9500" },
+  statusDotRed: { backgroundColor: "#ff3b30" },
+  statusText: { fontSize: 14, color: "#333", fontWeight: "500" },
   description: {
     fontSize: 15,
     color: "#555",
@@ -114,18 +199,16 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     lineHeight: 22,
   },
-  qrPlaceholder: {
-    width: 200,
-    height: 200,
-    borderWidth: 2,
-    borderColor: "#ccc",
-    borderRadius: 12,
+  qrBtn: {
+    width: "100%",
+    height: 52,
+    backgroundColor: "#34c759",
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
-    backgroundColor: "#fff",
+    marginBottom: 16,
   },
-  qrPlaceholderText: { color: "#aaa", fontSize: 14 },
+  qrBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
   orLabel: { fontSize: 13, color: "#888", marginBottom: 16 },
   input: {
     width: "100%",
@@ -149,4 +232,13 @@ const styles = StyleSheet.create({
   },
   pairBtnDisabled: { backgroundColor: "#ccc" },
   pairBtnText: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  unpairBtn: {
+    marginTop: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "#ff3b30",
+    borderRadius: 8,
+  },
+  unpairBtnText: { color: "#ff3b30", fontSize: 15, fontWeight: "600" },
 });

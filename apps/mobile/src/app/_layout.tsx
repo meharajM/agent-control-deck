@@ -11,8 +11,8 @@ export default function RootLayout() {
           headerBackTitle: "Back",
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="sessions/index" options={{ title: "Sessions" }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(settings)" options={{ headerShown: false }} />
         <Stack.Screen name="sessions/[id]" options={{ title: "Session" }} />
         <Stack.Screen name="approvals/[id]" options={{ title: "Approval" }} />
         <Stack.Screen

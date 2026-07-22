@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-deck.local/schemas/ucp-approval.schema.json",
+  "title": "UCP Approval Payloads",
+  "type": "object",
+  "required": ["id", "sessionId", "category", "risk", "reversible", "title", "summary", "decisions", "state", "version"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "category": {
+      "type": "string",
+      "enum": ["command", "fileChange", "network", "filesystem", "genericTool", "unknown"]
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "unknown"]
+    },
+    "reversible": {
+      "type": "string",
+      "enum": ["yes", "no", "unknown"]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "decisions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": ["pending", "answering", "approved", "rejected", "cancelled", "expired", "resolved_elsewhere", "failed"]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expiresAt": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

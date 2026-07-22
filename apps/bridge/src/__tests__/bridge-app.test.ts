@@ -115,14 +115,15 @@ describe('BridgeApp', () => {
 
     // Start a fake session — events should flow through as UCP envelopes
     const adapter = app.getAdapterManager()!.getAdapter('fake')!;
-    const sessionId = await adapter.startSession({});
-
-    // The fake adapter fires session.started, approval.requested, session.completed
-    const event = await waitForAnyMessage(ws, [
+    const eventPromise = waitForAnyMessage(ws, [
       'session.started',
       'approval.requested',
       'session.completed',
     ]);
+    const sessionId = await adapter.startSession({});
+
+    // The fake adapter fires session.started, approval.requested, session.completed
+    const event = await eventPromise;
 
     expect(event.protocol).toBe('ucp');
     expect(event.sessionId).toBe(sessionId);
@@ -142,15 +143,17 @@ describe('BridgeApp', () => {
     await initPromise;
 
     const adapter = app.getAdapterManager()!.getAdapter('fake')!;
+    const approvalPromise = waitForMessage(ws, 'approval.requested');
     const sessionId = await adapter.startSession({});
 
     // Wait for approval.requested
-    const approvalEvent = await waitForMessage(ws, 'approval.requested');
+    const approvalEvent = await approvalPromise;
     expect(approvalEvent.sessionId).toBe(sessionId);
 
     // Send approve command
     const approvalPayload = approvalEvent.payload as Record<string, unknown>;
     const correlationId = 'corr-approve-001';
+    const ackPromise = waitForMessage(ws, 'command.ack');
     ws.send(JSON.stringify({
       protocol: 'ucp',
       version: 1,
@@ -168,7 +171,7 @@ describe('BridgeApp', () => {
       },
     }));
 
-    const ack = await waitForMessage(ws, 'command.ack');
+    const ack = await ackPromise;
     expect(ack.correlationId).toBe(correlationId);
     ws.close();
   });
@@ -220,6 +223,7 @@ describe('BridgeApp', () => {
     ws.send(JSON.stringify({ type: 'connection.initialize' }));
     await initPromise;
 
+    const startAckPromise = waitForMessage(ws, 'command.ack');
     ws.send(JSON.stringify({
       protocol: 'ucp',
       version: 1,
@@ -234,11 +238,12 @@ describe('BridgeApp', () => {
       },
     }));
 
-    const startAck = await waitForMessage(ws, 'command.ack');
+    const startAck = await startAckPromise;
     const startedSessionId = String((startAck.payload as Record<string, unknown>).sessionId);
     expect(startedSessionId).toMatch(/^session-/);
     expect(app.getAdapterManager()!.getAdapterForSession(startedSessionId)).toBe(adapter);
 
+    const sendAckPromise = waitForMessage(ws, 'command.ack');
     ws.send(JSON.stringify({
       protocol: 'ucp',
       version: 1,
@@ -254,7 +259,7 @@ describe('BridgeApp', () => {
       },
     }));
 
-    const sendAck = await waitForMessage(ws, 'command.ack');
+    const sendAck = await sendAckPromise;
     expect(sendAck.correlationId).toBe('corr-send');
     expect(adapter.sendInstruction).toHaveBeenCalledWith(
       startedSessionId,

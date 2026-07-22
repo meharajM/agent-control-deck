@@ -28,7 +28,7 @@ The coordinator should not implement every workstream. It maintains the source o
 3. Mobile application
 4. Codex adapter
 5. OpenCode adapter
-6. Claude adapter
+6. Claude adapter (post-v1)
 7. Security/networking
 8. Test/chaos/accessibility
 9. Release/observability
@@ -162,9 +162,9 @@ Security/networking agent and mobile agent coordinate through pairing/transport 
 
 Chaos, accessibility, performance, and security agents run in parallel. Feature development pauses for critical reliability defects.
 
-### Wave 6 — Claude beta and optional infrastructure
+### Wave 6 — Post-v1 Claude beta and optional infrastructure
 
-Claude adapter and optional relay can proceed in parallel because both depend on stable bridge/UCP contracts, not each other.
+Claude adapter and optional relay can proceed in parallel after the Codex/OpenCode v1 release because both depend on stable bridge/UCP contracts, not each other. Neither is part of the v1 critical path or release gate.
 
 ## 9. Integration gates
 

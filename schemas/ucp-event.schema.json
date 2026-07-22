@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-deck.local/schemas/ucp-event.schema.json",
+  "title": "UCP Host Event Payload",
+  "type": "object",
+  "required": ["type"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "session.created",
+        "session.updated",
+        "session.state_changed",
+        "session.completed",
+        "session.cancelled",
+        "session.failed",
+        "approval.requested",
+        "approval.updated",
+        "approval.resolved",
+        "question.requested",
+        "question.resolved",
+        "instruction.accepted",
+        "host.snapshot"
+      ]
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

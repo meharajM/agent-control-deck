@@ -65,7 +65,7 @@ Development mode defaults to loopback and the fake adapter.
 
 ## 5. Runtime test profiles
 
-Use explicit profiles:
+Use explicit profiles. V1 real-runtime profiles are Codex and OpenCode; Claude and the combined profile are post-v1.
 
 ```text
 fake

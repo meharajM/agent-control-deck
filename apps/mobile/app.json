@@ -26,7 +26,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Agent Deck to use the camera for QR pairing."
+          "cameraPermission": "Allow Agent Deck to use the camera for QR pairing.",
+          "barcodeScannerEnabled": true
         }
       ],
       [

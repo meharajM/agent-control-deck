@@ -1,5 +1,7 @@
 # Initial Task Backlog
 
+V1 runtime scope is limited to Codex and OpenCode. Tasks for other runtimes remain visible for post-v1 planning but are not v1 dependencies or release gates.
+
 ## Contracts
 
 - **UCP-001:** Implement envelope schemas and fixture validator
@@ -56,7 +58,7 @@
 - **NET-001:** LAN discovery and route selection
 - **NET-002:** Private-network endpoint mode
 
-## Claude beta
+## Post-v1 Claude beta
 
 - **CLD-001:** Current Agent SDK query/session wrapper
 - **CLD-002:** Resume/fork/session listing
@@ -81,5 +83,5 @@
 - **SPIKE-004:** Maestro pairing/session/approval flow on iOS simulator and Android emulator
 - **SPIKE-005:** Codex app-server start/stream/approval proof
 - **SPIKE-006:** OpenCode server SSE/permission proof
-- **SPIKE-007:** Claude query/stream/interrupt/canUseTool proof
+- **SPIKE-007:** Claude query/stream/interrupt/canUseTool proof (post-v1; not a v1 gate)
 - **SPIKE-008:** Internet-blocked local-only end-to-end test

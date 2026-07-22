@@ -20,7 +20,7 @@ CREATE TABLE devices (
 
 CREATE TABLE runtime_instances (
   id TEXT PRIMARY KEY,
-  runtime TEXT NOT NULL CHECK (runtime IN ('codex', 'opencode', 'claude')),
+  runtime TEXT NOT NULL CHECK (runtime IN ('codex', 'opencode', 'claude', 'fake')),
   version TEXT,
   mode TEXT NOT NULL,
   state TEXT NOT NULL,

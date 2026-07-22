@@ -1,23 +1,21 @@
+import { useState } from "react";
+import { Alert } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSessionStore } from "../../store/session-store.js";
+import { approveApproval } from "../../services/command-sender.js";
 
-/**
- * Approval screen.
- *
- * Per product spec §9 and AGENTS.md invariant #9:
- * - All decision buttons are disabled when not connected.
- * - The card remains after sending a decision; the bridge resolves it.
- * - Biometric gate is a future layer; the button is wired but unimplemented here.
- */
 export default function ApprovalScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const approval = useSessionStore((s) =>
     id !== undefined ? s.pendingApprovals[id] : undefined
   );
   const connectionStatus = useSessionStore((s) => s.connectionStatus);
+  const [sending, setSending] = useState<string | null>(null);
 
-  const canAct = connectionStatus === "connected";
+  const canAct = connectionStatus === "connected" && sending === null;
+
+  const isOffline = connectionStatus === "stale" || connectionStatus === "disconnected";
 
   if (approval === undefined) {
     return (
@@ -31,16 +29,29 @@ export default function ApprovalScreen() {
     approval.state
   );
 
+  function handleDecision(decision: string) {
+    if (id === undefined) return;
+    setSending(decision);
+    try {
+      approveApproval(id, decision, approval!.version);
+      Alert.alert("Sent", `Decision "${decision}" sent to host.`);
+    } catch (err) {
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to send decision.");
+    } finally {
+      setSending(null);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {!canAct && !isTerminal ? (
+      {isOffline ? (
         <View
           style={styles.offlineBanner}
           accessibilityRole="alert"
-          accessibilityLabel="You must be connected to make a decision."
+          accessibilityLabel="Offline — showing cached data. State-changing controls are disabled."
         >
           <Text style={styles.offlineText}>
-            Connect to host before making a decision
+            Offline — cached data may be stale
           </Text>
         </View>
       ) : null}
@@ -78,7 +89,7 @@ export default function ApprovalScreen() {
       ) : (
         <View
           style={styles.decisionRow}
-          accessibilityRole="group"
+          accessibilityRole="none"
           accessibilityLabel="Decision buttons"
         >
           {approval.decisions.map((decision) => (
@@ -86,10 +97,7 @@ export default function ApprovalScreen() {
               key={decision}
               label={decision}
               disabled={!canAct}
-              onPress={() => {
-                // ponytail: approval.answer command wired in UCP service layer (future task).
-                // Disabled here until the command ledger and idempotency service are built.
-              }}
+              onPress={() => handleDecision(decision)}
             />
           ))}
         </View>

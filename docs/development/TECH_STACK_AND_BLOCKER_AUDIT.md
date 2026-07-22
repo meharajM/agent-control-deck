@@ -4,7 +4,7 @@
 
 The architecture is implementable with mainstream, maintained tooling. After the changes in this audit, there are no known critical architecture blockers for building, testing, packaging, or using the local-first product.
 
-There are unavoidable external prerequisites—particularly macOS/Xcode for iOS builds, runtime-specific authentication, and a server for background push notifications—but none prevents the local-first MVP.
+There are unavoidable external prerequisites—particularly macOS/Xcode for iOS builds, Codex/OpenCode authentication, and a server for background push notifications—but none prevents the local-first MVP.
 
 ## 2. Locked baseline stack
 
@@ -142,7 +142,7 @@ Cross-platform continuous speech recognition and host audio streaming introduce 
 - The first dedicated implementation records audio locally and requires explicit send.
 - Host transcription and embedded models are optional modules, not prerequisites.
 
-### 3.7 Claude session durability limitations
+### 3.7 Post-v1 Claude session durability limitations
 
 #### Problem
 
@@ -150,7 +150,7 @@ A pending in-process SDK permission callback cannot be assumed to survive an une
 
 #### Final decision
 
-- Claude remains beta.
+- Claude is deferred from v1 and remains a post-v1 beta target.
 - Use the current TypeScript `query()` API, streaming input, `Query.interrupt()`, `canUseTool`, session IDs, `resume`, and `fork_session`.
 - Use documented TypeScript defer behavior where applicable.
 - If an in-flight callback cannot be recovered after restart, mark the approval interrupted and reconcile/resume the session; never infer approval.
@@ -243,7 +243,7 @@ React Native monorepos can fail when native modules or React are duplicated.
 - User installs and configures OpenCode separately.
 - Bridge starts `opencode serve` on loopback with a generated password or connects to an existing configured server.
 
-### Claude
+### Claude (post-v1)
 
 - The Agent SDK package bundles a platform-native Claude Code binary as an optional dependency where available.
 - Installer builds must preserve optional platform packages.
@@ -284,9 +284,10 @@ React Native monorepos can fail when native modules or React are duplicated.
 8. Physical-device LAN tests.
 9. Installer packaging.
 10. Private-network endpoints.
-11. Claude beta.
-12. Dedicated voice.
-13. Optional relay and push.
+11. V1 release hardening and distribution for Codex/OpenCode.
+12. Post-v1 Claude beta.
+13. Post-v1 dedicated voice.
+14. Post-v1 optional relay and push.
 
 ## 8. Go/no-go proof spikes
 
@@ -310,7 +311,8 @@ Complete these before feature development branches widely:
 
 - Codex thread start, stream, and one approval.
 - OpenCode session stream and one permission answer.
-- Claude `query()` stream, interrupt, and one `canUseTool` callback.
+
+The Claude `query()` stream, interrupt, and `canUseTool` proof is post-v1 and is not a v1 gate.
 
 ### Spike D — E2E
 

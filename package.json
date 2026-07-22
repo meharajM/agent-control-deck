@@ -7,7 +7,12 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "build": "turbo run build"
+    "build": "turbo run build",
+    "start:bridge": "pnpm --filter @agent-deck/bridge start",
+    "start:bridge:fake": "BRIDGE_RUNTIME=fake pnpm start:bridge",
+    "start:bridge:codex": "BRIDGE_RUNTIME=codex pnpm start:bridge",
+    "start:bridge:opencode": "BRIDGE_RUNTIME=opencode pnpm start:bridge",
+    "dev": "pnpm build && pnpm --filter @agent-deck/bridge start"
   },
   "devDependencies": {
     "turbo": "^2.5.4",

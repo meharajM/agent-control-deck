@@ -2,11 +2,12 @@
 
 A local-first, server-optional mobile command surface for controlling AI coding agents running on a user's own computer.
 
-## Supported runtimes
+## V1 supported runtimes
 
 - OpenAI Codex
 - OpenCode
-- Claude Code through bridge-managed Claude Agent SDK sessions
+
+Claude Code through bridge-managed Claude Agent SDK sessions is a post-v1 target. The v1 release does not require or advertise Claude support.
 
 OpenClaw is intentionally outside the scope of this repository plan.
 
@@ -31,22 +32,41 @@ Mobile app -- local Wi-Fi/private network --> Host bridge --> Coding runtimes
 
 The host bridge is required and runs on the user's machine. A managed relay is optional and may be added later for frictionless remote connectivity and push notifications. LAN and private-network operation remain functional when all optional hosted services are unavailable.
 
-## Repository blueprint
+## Start the bridge
 
-This package is a development-planning and bootstrap bundle. It contains:
+Build the workspace before the first launch:
 
-- Product requirements and app behavior
-- Architecture and local-first networking decisions
-- Universal Control Protocol specification
-- Runtime adapter contracts
-- Security and threat model
-- Data model and starter SQL migration
-- Multi-agent development workflow
-- Testing, accessibility, observability, release, and roadmap plans
-- ADRs, task templates, handoff templates, and specialist-agent prompts
-- Starter JSON Schemas and configuration examples
+```bash
+pnpm install
+pnpm build
+```
 
-It does not yet contain the completed mobile app or host bridge implementation.
+The bridge uses the `BRIDGE_RUNTIME` selector to start exactly one runtime adapter. Use one of these explicit commands:
+
+```bash
+pnpm start:bridge:fake
+pnpm start:bridge:codex
+pnpm start:bridge:opencode
+```
+
+The equivalent direct form is `BRIDGE_RUNTIME=fake pnpm start:bridge`, replacing `fake` with `codex` or `opencode`. The default bridge port is `8765`; override it without changing runtime selection, for example `BRIDGE_PORT=9000 pnpm start:bridge:codex`. Runtime credentials remain on the host and must not be placed in command output, documentation, or logs.
+
+## Repository status
+
+This repository now contains both the blueprint and an active implementation. Current validated state:
+
+- `apps/bridge` and bridge packages implement the host bridge, UCP gateway, ledgers, snapshots, and runtime supervision layers.
+- `apps/mobile` implements the mobile shell, session and approval flows, pairing routes, and route-selection and diagnostics flows.
+- Runtime packages for fake, Codex, OpenCode, and Claude adapters are present. Codex and OpenCode remain the only v1 release-gated runtimes.
+- Security and pairing foundations exist in `packages/crypto` and `packages/bridge-pairing`.
+- QA harnesses and conformance and chaos scenarios exist in `packages/qa-scenarios`.
+- The current workspace baseline is a green `pnpm test` and `pnpm typecheck`.
+
+Known QA-readiness gaps remain:
+
+- Pairing and authenticated encryption are implemented but are not yet fully the default bridge startup path.
+- Private-network routing still has documented stubs around network identification, latency correlation, and interface-to-IP resolution.
+- Maestro and device validation, release packaging, and installer and start-on-login validation are still release-gate work.
 
 ## Recommended implementation stack
 
@@ -72,7 +92,7 @@ It does not yet contain the completed mobile app or host bridge implementation.
 
 ## Definition of the first usable release
 
-A user can install a bridge, pair a phone without creating a product account, discover Codex and OpenCode, view sessions, send short instructions, answer structured approvals, cancel work, survive network changes, and recover state after a bridge restart. Claude bridge-managed sessions may ship as beta.
+A user can install a bridge, pair a phone without creating a product account, discover Codex and OpenCode, view sessions, send short instructions, answer structured approvals, cancel work, survive network changes, and recover state after a bridge restart. Codex and OpenCode are the only runtime adapters required or supported for the v1 release.
 
 ## Non-goals for the first release
 

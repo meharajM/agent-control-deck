@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-deck.local/schemas/ucp-question.schema.json",
+  "title": "UCP Question Payloads",
+  "type": "object",
+  "required": ["id", "sessionId", "prompt", "state"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "prompt": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "options": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "state": {
+      "type": "string",
+      "enum": ["pending", "answered", "expired"]
+    },
+    "answer": {
+      "description": "Present on resolved questions"
+    }
+  },
+  "additionalProperties": false
+}

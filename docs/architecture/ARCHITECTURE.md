@@ -18,10 +18,8 @@ flowchart LR
     Supervisor[Adapter Supervisor]
     CodexAdapter[Codex Adapter]
     OpenCodeAdapter[OpenCode Adapter]
-    ClaudeAdapter[Claude Adapter]
     Codex[Codex App Server]
     OpenCode[OpenCode Server]
-    Claude[Claude Agent SDK]
 
     Gateway --> Core
     Core --> DB
@@ -29,7 +27,6 @@ flowchart LR
     Core --> Supervisor
     Supervisor --> CodexAdapter --> Codex
     Supervisor --> OpenCodeAdapter --> OpenCode
-    Supervisor --> ClaudeAdapter --> Claude
   end
 
   Phone <-->|Direct app-encrypted WS| Gateway
@@ -98,7 +95,7 @@ bridge-daemon
 ├── adapter supervisor
 │   ├── Codex worker
 │   ├── OpenCode worker
-│   └── Claude worker
+│   └── Post-v1 adapter workers
 └── diagnostics/observability
 ```
 
@@ -110,7 +107,7 @@ These are not the same as the phone-facing transport.
 
 - Codex: JSON-RPC over stdio by default; Unix socket optional; app-server TCP WebSocket is experimental and not the preferred integration.
 - OpenCode: localhost HTTP/OpenAPI plus SSE.
-- Claude: Agent SDK `query()` streaming/session APIs inside the bridge process or adapter worker.
+- Post-v1 adapters may add their native transport behind the same bridge boundary; Claude Agent SDK `query()` is not a v1 dependency.
 
 ## 7. Phone-facing transport
 

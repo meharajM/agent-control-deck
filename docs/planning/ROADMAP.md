@@ -8,40 +8,56 @@
 - Approval queue
 - Replay/snapshot
 
-## Milestone 2 — Codex and OpenCode MVP
+Status: implemented in-repo.
+
+## Milestone 2 — Codex and OpenCode v1 foundation
 
 - Production adapters
 - Direct LAN pairing
 - Device revocation
-- Cross-runtime capabilities
+- Shared capabilities across Codex and OpenCode
 
-## Milestone 3 — Private-network beta
+Status: mostly implemented in-repo; security and networking integration and validation remain open.
+
+## Milestone 3 — Codex/OpenCode v1 hardening and release
 
 - Tailscale/manual private endpoint
 - Route selection
 - Reliability hardening
 - Accessibility completion
+- Signed bridge and mobile release artifacts
+- No-internet local-first release validation
 
-## Milestone 4 — Claude managed beta
+Status: in progress. Current QA-readiness blockers are concentrated here.
+
+## Milestone 4 — Post-v1 Claude managed beta
 
 - Agent SDK sessions
 - Resume/fork
 - Approvals/questions
 - Skills/hooks policy
 
-## Milestone 5 — Voice
+This milestone is not part of v1 and does not block the Codex/OpenCode release.
+
+Status: adapter package exists, but this milestone remains outside the v1 QA gate.
+
+## Milestone 5 — Post-v1 voice
 
 - Push-to-talk
 - On-device transcription
 - Optional host transcription
 - Latency instrumentation
 
-## Milestone 6 — Optional relay
+Status: deferred. Text input and OS dictation remain the supported v1 path.
+
+## Milestone 6 — Post-v1 optional relay
 
 - E2E encrypted routing
 - Generic push
 - Self-hosted option
 - Security review
+
+Status: deferred. Relay is not part of current QA readiness.
 
 ## Later possibilities
 

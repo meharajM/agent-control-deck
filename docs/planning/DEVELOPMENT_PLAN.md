@@ -2,7 +2,7 @@
 
 ## 1. Goal
 
-Deliver a local-first Android/iOS application and host bridge that can safely supervise Codex and OpenCode sessions, with bridge-managed Claude Agent SDK sessions as beta. Optional hosted infrastructure is deferred until core local reliability is proven.
+Deliver a local-first Android/iOS application and host bridge that can safely supervise Codex and OpenCode sessions. Claude Agent SDK sessions are explicitly post-v1. Optional hosted infrastructure is deferred until core local reliability is proven.
 
 ## 2. Delivery strategy
 
@@ -18,6 +18,15 @@ Baseline estimate assumes:
 - Part-time QA/accessibility support
 
 A multi-agent coding workflow is described separately.
+
+## 3.1 Current implementation snapshot
+
+Validated repository status as of 2026-07-21:
+
+- Phases 0 through 4 are implemented in-repo: protocol and contracts, bridge core, mobile supervision flows, fake-runtime vertical slice, and Codex and OpenCode adapter foundations.
+- The workspace baseline is currently a green `pnpm test` and `pnpm typecheck`.
+- Phase 5 pairing and security networking, Phase 6 chaos hardening, and Phase 7 private-network mode all have implementation in the tree but are not yet fully release-gated.
+- Remaining v1 QA-readiness work is concentrated in secure startup wiring, device and Maestro validation evidence, packaging and start-on-login validation, and documented networking stubs.
 
 ## 4. Phase plan
 
@@ -145,6 +154,11 @@ Exit criteria:
 - QR replay fails
 - Revoked active device disconnects
 
+Current state:
+
+- Core crypto, QR payload, device-grant, and biometric-gate implementation exists in the repository.
+- Release-gate integration is still open for durable nonces and device grants and for making authenticated encrypted transport the default bridge startup path.
+
 ### Phase 6 — Reliability and chaos hardening
 
 **Duration:** 2–3 weeks
@@ -164,6 +178,11 @@ Exit criteria:
 - Normalized state converges to runtime state under fault injection
 - No duplicate state-changing action in simulation target
 
+Current state:
+
+- Convergence, replay and idempotency, approval race, restart, and performance scenario coverage exist in `packages/qa-scenarios`.
+- Remaining QA work is system-level evidence such as physical-device and Maestro flows and no-internet release validation.
+
 ### Phase 7 — Private-network mode
 
 **Duration:** 1–2 weeks
@@ -179,26 +198,45 @@ Exit criteria:
 
 - Remote operation works without vendor server
 
-### Phase 8 — Accessibility hardening and dedicated voice beta
+Current state:
+
+- Route selection, diagnostics, private endpoint configuration, and bridge interface binding are implemented.
+- The current implementation still carries documented stubs for network ID detection, latency correlation, and interface-to-IP resolution.
+
+### Phase 8 — V1 accessibility hardening
 
 **Duration:** 2–3 weeks
 
 Deliver:
 
 - Preserve text and OS keyboard dictation parity
-- Push-to-talk beta
-- Optional on-device/host transcription proof paths
 - Editable drafts
-- Voice failure recovery
 - VoiceOver/TalkBack completion
 - Large text/high contrast/reduced motion
 
 Exit criteria:
 
-- Voice latency targets met
 - Full text-only parity
+- Core Codex/OpenCode flow passes VoiceOver/TalkBack review
 
-### Phase 9 — Claude managed adapter beta
+### Phase 9 — V1 release hardening and distribution
+
+**Duration:** 3–4 weeks
+
+Deliver:
+
+- Signed installers
+- Start-on-login
+- Mobile store builds
+- Update mechanism
+- Sanitized diagnostics
+- Privacy/security docs
+- Support runbooks
+- Compatibility matrix automation
+
+The v1 release contains Codex and OpenCode only. Claude, dedicated voice, and optional relay/push remain post-v1 work unless separately approved.
+
+### Phase 10 — Post-v1 Claude managed adapter beta
 
 **Duration:** 3–4 weeks
 
@@ -217,7 +255,25 @@ Exit criteria:
 - Beta adapter contract suite passes
 - Removed/deprecated SDK APIs are not used
 
-### Phase 10 — Optional relay and push
+This phase is not part of the v1 release and must not block v1 readiness, packaging, or launch.
+
+### Phase 11 — Post-v1 dedicated voice beta
+
+**Duration:** 2–3 weeks
+
+Deliver:
+
+- Push-to-talk beta
+- Optional on-device/host transcription proof paths
+- Voice failure recovery
+- Latency instrumentation
+
+Exit criteria:
+
+- Voice latency targets met
+- Full text-only parity remains available
+
+### Phase 12 — Post-v1 optional relay and push
 
 **Duration:** 3–5 weeks
 
@@ -237,21 +293,6 @@ Exit criteria:
 - Relay cannot decrypt captured content
 - External security review complete
 
-### Phase 11 — Public beta and release
-
-**Duration:** 3–4 weeks
-
-Deliver:
-
-- Signed installers
-- Start-on-login
-- Mobile store builds
-- Update mechanism
-- Sanitized diagnostics
-- Privacy/security docs
-- Support runbooks
-- Compatibility matrix automation
-
 ## 5. MVP scope
 
 MVP includes:
@@ -269,12 +310,12 @@ MVP includes:
 - Reconnect/replay/snapshot
 - Device revocation
 
-MVP excludes:
+V1/MVP excludes:
 
 - Managed relay
 - Product account
 - Guaranteed background push
-- Claude GA
+- Claude support, including beta support
 - Voice
 - Arbitrary terminal/file browser
 
@@ -294,7 +335,8 @@ Each phase requires:
 
 - Codex/OpenCode local MVP: 10–14 weeks with two engineers
 - Local/private-network beta with accessibility and optional voice beta: 14–18 weeks
-- Production-ready release with Claude beta and optional relay: 20–26 weeks
+- V1 release hardening and distribution for Codex/OpenCode: 16–22 weeks
+- Post-v1 Claude beta and optional relay: scheduled separately after v1
 - Single experienced engineer: approximately 30–40 weeks
 
 ## 8. First eight sprints
@@ -348,6 +390,8 @@ Each phase requires:
 
 ## 9. Definition of done for v1
 
+V1 runtime scope is exactly Codex and OpenCode. No other runtime adapter is a release dependency or launch requirement.
+
 - Install bridge on macOS, Windows, Linux
 - Pair Android/iOS without account
 - Detect Codex/OpenCode
@@ -359,3 +403,9 @@ Each phase requires:
 - Complete core flow with VoiceOver/TalkBack
 - No runtime credentials on phone
 - No public inbound host port required
+- Claude adapter is not included in the v1 release gate
+
+Current QA-readiness delta:
+
+- The repository is beyond initial implementation and has a green test and typecheck baseline.
+- V1 is not yet QA-ready until the outstanding Phase 5 to 7 release-gate items and Phase 8 to 9 validation evidence are closed.

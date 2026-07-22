@@ -7,5 +7,8 @@ export type { AcceptInput, CommandState } from './command-ledger.js';
 export { ApprovalService } from './approval-service.js';
 export type { ApprovalInput, Approval } from './approval-service.js';
 
+export { QuestionService } from './question-service.js';
+export type { QuestionInput, Question } from './question-service.js';
+
 export { SnapshotService } from './snapshot-service.js';
 export type { SessionSnapshot } from './snapshot-service.js';

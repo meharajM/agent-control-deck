@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-deck.local/schemas/ucp-snapshot.schema.json",
+  "title": "UCP Host Snapshot Payload",
+  "type": "object",
+  "required": ["hostId", "sessions", "approvals", "questions", "sequence"],
+  "properties": {
+    "hostId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "state", "summary", "version", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "state": { "type": "string" },
+          "summary": { "type": "string" },
+          "currentAction": { "type": ["string", "null"] },
+          "pendingApprovalCount": { "type": "integer", "minimum": 0 },
+          "pendingQuestionCount": { "type": "integer", "minimum": 0 },
+          "capabilities": { "type": "object" },
+          "version": { "type": "integer", "minimum": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "sessionId", "category", "risk", "reversible", "title", "summary", "decisions", "state", "version"],
+        "properties": {
+          "id": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "category": { "type": "string" },
+          "risk": { "type": "string" },
+          "reversible": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "decisions": { "type": "array", "items": { "type": "string" } },
+          "state": { "type": "string" },
+          "version": { "type": "integer" },
+          "expiresAt": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "sessionId", "prompt", "state"],
+        "properties": {
+          "id": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "prompt": { "type": "string" },
+          "options": { "type": ["array", "null"], "items": { "type": "string" } },
+          "state": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

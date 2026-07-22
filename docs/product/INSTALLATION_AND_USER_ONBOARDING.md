@@ -29,7 +29,7 @@ A new user should reach a connected fake or real runtime without creating an Age
 ## 3. First-run host wizard
 
 1. Check bridge database directory.
-2. Detect Codex, OpenCode, and Claude capability.
+2. Detect Codex and OpenCode capability. Claude detection is post-v1.
 3. Show runtime authentication status without reading secrets.
 4. Keep bridge on loopback.
 5. Generate host identity.
@@ -72,7 +72,7 @@ mDNS failure must never block setup.
 - runtime binary paths and versions
 - OpenCode health/authentication
 - Codex app-server handshake
-- Claude SDK executable availability
+- Post-v1 runtime checks are not required for v1 onboarding
 - firewall reachability guidance
 - clock sanity
 

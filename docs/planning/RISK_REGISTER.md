@@ -3,7 +3,7 @@
 | ID | Risk | Probability | Impact | Mitigation |
 |---|---|---:|---:|---|
 | R1 | Runtime APIs change quickly | High | High | Version probes, schemas, contract CI, capability flags |
-| R2 | Claude arbitrary-session attachment lacks reliable supported API | High | Medium | Ship bridge-managed SDK sessions; label attachment experimental |
+| R2 | Claude arbitrary-session attachment lacks reliable supported API | High | Medium | Defer Claude entirely from v1; evaluate bridge-managed SDK sessions post-v1 and label attachment experimental |
 | R3 | Approval normalization hides critical detail | Medium | Critical | Raw deterministic data, fail closed, security review |
 | R4 | Reconnect creates duplicate action | Medium | Critical | Command ledger, idempotency, runtime confirmation |
 | R5 | Relay becomes trusted content store | Medium | High | E2E encryption, routing-only architecture |

@@ -57,6 +57,7 @@ export class UcpGateway {
   private readonly authenticated = new Set<AuthenticatedClient>();
   private readonly authenticatedByDeviceKey = new Map<string, Set<AuthenticatedClient>>();
   private readonly unauthenticated = new Set<WebSocket>();
+  private readonly legacyDeviceIds = new WeakMap<WebSocket, string>();
   private readonly config: UcpGatewayConfig;
   // ponytail: simple IP-based rate limiting with a Map — production would use a token bucket
   private readonly connectionAttempts = new Map<string, number[]>();
@@ -335,6 +336,18 @@ export class UcpGateway {
     }
   }
 
+  private ensureLegacyDevice(deviceId: string): void {
+    const now = new Date().toISOString();
+    this.config.db
+      .prepare(
+        `INSERT OR IGNORE INTO devices
+           (id, name, platform, public_key, grant_json, status, paired_at)
+         VALUES
+           (?, 'Legacy Device', 'legacy', ?, '{}', 'active', ?)`
+      )
+      .run(deviceId, `legacy-pub-${deviceId}`, now);
+  }
+
   /** Legacy connection handling without encryption — for backward compatibility and tests. */
   private handleLegacyConnection(ws: WebSocket): void {
     let initialized = false;
@@ -355,6 +368,9 @@ export class UcpGateway {
       if (!initialized) {
         if (this.isInitializeMessage(msg)) {
           initialized = true;
+          const legacyDeviceId = `legacy-${randomUUID()}`;
+          this.legacyDeviceIds.set(ws, legacyDeviceId);
+          this.ensureLegacyDevice(legacyDeviceId);
           this.unauthenticated.add(ws);
           const payload = (msg as Record<string, unknown>).payload as Record<string, unknown> | undefined;
           lastSyncSequence = Number(payload?.lastSyncSequence ?? 0);
@@ -604,6 +620,8 @@ export class UcpGateway {
     const idempotencyKey = payload.idempotencyKey as string | undefined;
     if (!idempotencyKey) return;
 
+    const deviceId = this.legacyDeviceIds.get(ws);
+    if (!deviceId) return;
     let sessionId = envelope.sessionId as string | undefined;
     let adapter: RuntimeAdapter | undefined;
     if (envelope.type === 'command/start') {
@@ -619,7 +637,7 @@ export class UcpGateway {
       result = this.config.commandLedger.accept({
         id: commandId,
         idempotencyKey,
-        deviceId: 'mobile',
+        deviceId,
         sessionId: sessionId ?? null,
         commandType: envelope.type,
         payloadHash: JSON.stringify(payload),

@@ -95,6 +95,12 @@ function createFakeDbWithEvents(
         };
       }
 
+      if (sql.includes('INSERT OR IGNORE INTO devices')) {
+        return {
+          run: () => ({ changes: 1 }),
+        };
+      }
+
       throw new Error(`Unhandled SQL in gateway fake DB: ${sql}`);
     },
   };
@@ -407,6 +413,18 @@ describe('UcpGateway legacy routing', () => {
       });
     });
 
+    const startAckPromise = new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for start ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-start') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve(String((msg.payload as Record<string, unknown>).sessionId));
+        }
+      });
+    });
+
     ws.send(JSON.stringify({
       protocol: 'ucp',
       version: 1,
@@ -421,19 +439,21 @@ describe('UcpGateway legacy routing', () => {
       },
     }));
 
-    const startedSessionId = await new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timeout waiting for start ack')), 2000);
+    const startedSessionId = await startAckPromise;
+
+    expect(startedSessionId).toBe('session-from-start');
+
+    const sendAckPromise = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for send ack')), 2000);
       ws.on('message', function handler(data) {
         const msg = JSON.parse(String(data)) as UcpEnvelope;
-        if (msg.type === 'command.ack' && msg.correlationId === 'corr-start') {
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-send') {
           clearTimeout(timer);
           ws.off('message', handler);
-          resolve(String((msg.payload as Record<string, unknown>).sessionId));
+          resolve();
         }
       });
     });
-
-    expect(startedSessionId).toBe('session-from-start');
 
     ws.send(JSON.stringify({
       protocol: 'ucp',
@@ -450,22 +470,24 @@ describe('UcpGateway legacy routing', () => {
       },
     }));
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timeout waiting for send ack')), 2000);
+    await sendAckPromise;
+
+    expect(adapter.sendInstructionCalls).toHaveLength(1);
+    expect(adapter.sendInstructionCalls[0]?.sessionId).toBe('session-from-start');
+    expect(adapter.sendInstructionCalls[0]?.text).toBe('Follow-up instruction');
+    expect(adapter.sendInstructionCalls[0]?.idempotencyKey).toBe('idem-send');
+
+    const approveAckPromise = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for approve ack')), 2000);
       ws.on('message', function handler(data) {
         const msg = JSON.parse(String(data)) as UcpEnvelope;
-        if (msg.type === 'command.ack' && msg.correlationId === 'corr-send') {
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-approve') {
           clearTimeout(timer);
           ws.off('message', handler);
           resolve();
         }
       });
     });
-
-    expect(adapter.sendInstructionCalls).toHaveLength(1);
-    expect(adapter.sendInstructionCalls[0]?.sessionId).toBe('session-from-start');
-    expect(adapter.sendInstructionCalls[0]?.text).toBe('Follow-up instruction');
-    expect(adapter.sendInstructionCalls[0]?.idempotencyKey).toBe('idem-send');
 
     ws.send(JSON.stringify({
       protocol: 'ucp',
@@ -483,17 +505,7 @@ describe('UcpGateway legacy routing', () => {
       },
     }));
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timeout waiting for approve ack')), 2000);
-      ws.on('message', function handler(data) {
-        const msg = JSON.parse(String(data)) as UcpEnvelope;
-        if (msg.type === 'command.ack' && msg.correlationId === 'corr-approve') {
-          clearTimeout(timer);
-          ws.off('message', handler);
-          resolve();
-        }
-      });
-    });
+    await approveAckPromise;
 
     expect(adapter.resolveApprovalCalls).toEqual([
       {
@@ -503,6 +515,18 @@ describe('UcpGateway legacy routing', () => {
         idempotencyKey: 'idem-approve',
       },
     ]);
+
+    const cancelAckPromise = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for cancel ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-cancel') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
 
     ws.send(JSON.stringify({
       protocol: 'ucp',
@@ -518,17 +542,7 @@ describe('UcpGateway legacy routing', () => {
       },
     }));
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timeout waiting for cancel ack')), 2000);
-      ws.on('message', function handler(data) {
-        const msg = JSON.parse(String(data)) as UcpEnvelope;
-        if (msg.type === 'command.ack' && msg.correlationId === 'corr-cancel') {
-          clearTimeout(timer);
-          ws.off('message', handler);
-          resolve();
-        }
-      });
-    });
+    await cancelAckPromise;
 
     expect(adapter.cancelSessionCalls).toEqual([
       {
@@ -536,6 +550,18 @@ describe('UcpGateway legacy routing', () => {
         idempotencyKey: 'idem-cancel',
       },
     ]);
+
+    const answerAckPromise = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout waiting for answer ack')), 2000);
+      ws.on('message', function handler(data) {
+        const msg = JSON.parse(String(data)) as UcpEnvelope;
+        if (msg.type === 'command.ack' && msg.correlationId === 'corr-answer') {
+          clearTimeout(timer);
+          ws.off('message', handler);
+          resolve();
+        }
+      });
+    });
 
     ws.send(JSON.stringify({
       protocol: 'ucp',
@@ -553,17 +579,7 @@ describe('UcpGateway legacy routing', () => {
       },
     }));
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timeout waiting for answer ack')), 2000);
-      ws.on('message', function handler(data) {
-        const msg = JSON.parse(String(data)) as UcpEnvelope;
-        if (msg.type === 'command.ack' && msg.correlationId === 'corr-answer') {
-          clearTimeout(timer);
-          ws.off('message', handler);
-          resolve();
-        }
-      });
-    });
+    await answerAckPromise;
 
     expect(adapter.answerQuestionCalls).toEqual([
       {

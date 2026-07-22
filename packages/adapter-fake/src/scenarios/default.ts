@@ -24,7 +24,6 @@ export const defaultScenario: ScenarioStep[] = [
     delayMs: 100,
     type: 'approval.requested',
     payload: {
-      approvalId: 'fake-apr-001',
       category: 'file_write',
       risk: 'low',
       reversible: 'yes',
@@ -44,10 +43,20 @@ export function buildAdapterEvent(
   sessionId: string,
   step: ScenarioStep
 ): AdapterEvent {
+  const payload =
+    step.type === 'approval.requested' && step.payload && typeof step.payload === 'object'
+      ? {
+          ...(step.payload as Record<string, unknown>),
+          approvalId:
+            (step.payload as Record<string, unknown>).approvalId ??
+            `fake-apr-${sessionId}`,
+        }
+      : step.payload;
+
   return {
     type: step.type,
     sessionId,
-    payload: step.payload,
+    payload,
     timestamp: new Date().toISOString(),
   };
 }

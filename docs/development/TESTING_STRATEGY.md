@@ -19,7 +19,7 @@ Prove that Agent Deck remains safe and state-consistent under runtime changes, n
 
 ### Contract
 
-Shared adapter conformance suite for Codex, OpenCode, and Claude.
+V1 shared adapter conformance suite for Codex and OpenCode. Claude conformance is a post-v1 suite and is not a v1 release gate.
 
 ### Integration
 

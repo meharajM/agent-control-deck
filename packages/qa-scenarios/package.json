@@ -17,7 +17,18 @@
     "test": "vitest run",
     "lint": "echo 'lint: ok'"
   },
+  "dependencies": {
+    "@agent-deck/adapter-contract": "workspace:*",
+    "@agent-deck/bridge-core": "workspace:*",
+    "@agent-deck/bridge-database": "workspace:*",
+    "@agent-deck/adapter-fake": "workspace:*",
+    "@agent-deck/protocol": "workspace:*",
+    "better-sqlite3": "^12.0.0",
+    "ws": "^8.18.0"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/ws": "^8.5.13",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }
