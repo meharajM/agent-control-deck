@@ -54,7 +54,7 @@ Every runtime adapter release records:
 - Apple local-network privacy and App Transport Security local-network exception documentation
 - Android Network Security Configuration documentation
 - Key implementation facts: development builds support custom native code; Expo SDK 56 is a stable React Native 0.85 baseline; pnpm monorepos are supported; local-network permission/configuration is required; secure storage is intended for small values.
-- Verified on July 22, 2026: Android local emulator builds require JDK 17 instead of Java 11 for the current Expo SDK 56 and React Native 0.85 toolchain. After moving to JDK 17, `expo run:android` still timed out while starting the `ContextEngine_Test_Device` emulator. iOS simulator builds are currently blocked on Xcode 16.4 because the resolved Swift package graph requires Swift tools `6.2.0` while Xcode 16.4 provides Swift `6.1.x`.
+- Verified on July 22, 2026: Android local emulator builds require JDK 17 instead of Java 11 for the current Expo SDK 56 and React Native 0.85 toolchain. The repository wrapper `apps/mobile/scripts/run-android-simulator.sh` now provides a validated Android path by reusing or booting `ContextEngine_Test_Device`, waiting for the specific emulator serial to complete boot, and then invoking Expo; direct `expo run:android` remains less reliable when Expo must launch the emulator itself. iOS simulator builds are currently blocked on Xcode 16.4 because the resolved Swift package graph requires Swift tools `6.2.0` while Xcode 16.4 provides Swift `6.1.x`.
 
 ## Node/bridge packaging
 

@@ -48,10 +48,10 @@ Commands:
 pnpm install
 pnpm --filter @agent-deck/mobile expo prebuild --clean
 pnpm --filter @agent-deck/mobile expo run:ios
-pnpm --filter @agent-deck/mobile expo run:android
+pnpm --filter @agent-deck/mobile android
 ```
 
-On this host, use the deterministic Android simulator wrapper instead of relying on Expo to boot an AVD itself:
+On this host, `pnpm --filter @agent-deck/mobile android` is the deterministic Android simulator path instead of relying on Expo to boot an AVD itself:
 
 ```bash
 cd apps/mobile
@@ -61,15 +61,18 @@ cd apps/mobile
 The wrapper:
 
 - uses JDK 17 from `/opt/homebrew/opt/openjdk@17/...` when `JAVA_HOME` is unset;
-- reuses an already-booted Android emulator when one exists;
-- otherwise starts `ContextEngine_Test_Device`, waits for `sys.boot_completed=1`, then runs `expo run:android --device <avd-name> --no-bundler`.
+- uses `ANDROID_SDK_ROOT` or `~/Library/Android/sdk` to locate `adb` and `emulator` when they are not already on `PATH`;
+- reuses an already-booted emulator for the target AVD when one exists;
+- otherwise starts `ContextEngine_Test_Device`, waits for that specific emulator serial to appear, waits for `sys.boot_completed=1`, then runs `expo run:android --device <avd-name> --no-bundler`;
+- unsets an invalid inherited `LC_ALL` value so the wrapper does not emit a host-locale warning before the Android build starts.
 
 A native rebuild is needed after adding or changing native modules/config plugins, but ordinary TypeScript changes use the normal Metro fast-refresh workflow.
 
 Verified local host results on July 22, 2026:
 
 - Android local builds advanced only after replacing Java 11 with JDK 17.
-- The current Android validation blocker on this host is emulator startup reliability: `expo run:android` timed out while starting the `ContextEngine_Test_Device` emulator.
+- The repository wrapper now provides a stable Android install/test path on this host: it booted or reused `ContextEngine_Test_Device`, built the app, installed the debug APK, and opened the Expo development client.
+- Direct `expo run:android` remains less reliable when Expo must start the emulator itself.
 - The current iOS validation blocker on this host is Swift tools compatibility: Xcode 16.4 provides Swift `6.1.2`, but `expo-modules-jsi@56.0.12` declares `// swift-tools-version: 6.2` in `apple/Package.swift`.
 - Disabling Expo precompiled modules does not remove this blocker for the current dependency graph. The iOS build still runs the CocoaPods phase `[CP-User] Build ExpoModulesJSI xcframework`, which resolves the same Swift package and fails before app compilation begins.
 - On July 22, 2026, Apple documents Swift `6.2` support in Xcode 26.x. Treat Xcode 26.0 or newer as the minimum local iOS toolchain for this repo until Expo or the dependency graph changes.
