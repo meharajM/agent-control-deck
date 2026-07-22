@@ -103,7 +103,7 @@ pnpm --filter @agent-deck/mobile expo doctor
 ```bash
 cd apps/mobile
 npx expo prebuild --clean
-npx expo run:android
+pnpm android
 npx expo run:ios
 ```
 
@@ -114,6 +114,6 @@ cd apps/mobile
 ./scripts/run-android-simulator.sh
 ```
 
-That path waits for a booted emulator before invoking Expo and avoids the observed Expo emulator-start timeout.
+That is the same command behind `pnpm android`. It waits for a booted emulator before invoking Expo and avoids the observed Expo emulator-start timeout.
 
 Use development builds as the normal mobile workflow.
