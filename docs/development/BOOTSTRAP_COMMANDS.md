@@ -107,4 +107,13 @@ npx expo run:android
 npx expo run:ios
 ```
 
+For Android simulator work on this host, prefer:
+
+```bash
+cd apps/mobile
+./scripts/run-android-simulator.sh
+```
+
+That path waits for a booted emulator before invoking Expo and avoids the observed Expo emulator-start timeout.
+
 Use development builds as the normal mobile workflow.

@@ -5,7 +5,7 @@
 ### Full mobile and bridge development
 
 - macOS 14 or newer recommended
-- Xcode version required by Expo SDK 56 and by the resolved Swift package graph
+- Xcode with a Swift Package Manager toolchain that supports Swift tools `6.2`
 - Android Studio with SDK 36 toolchain
 - Node.js 24 LTS
 - Corepack-enabled pnpm
@@ -54,7 +54,8 @@ pnpm --filter @agent-deck/mobile expo run:android
 On this host, use the deterministic Android simulator wrapper instead of relying on Expo to boot an AVD itself:
 
 ```bash
-pnpm --filter @agent-deck/mobile run android:simulator
+cd apps/mobile
+./scripts/run-android-simulator.sh
 ```
 
 The wrapper:
@@ -69,7 +70,9 @@ Verified local host results on July 22, 2026:
 
 - Android local builds advanced only after replacing Java 11 with JDK 17.
 - The current Android validation blocker on this host is emulator startup reliability: `expo run:android` timed out while starting the `ContextEngine_Test_Device` emulator.
-- The current iOS validation blocker on this host is Swift tools compatibility: Xcode 16.4 provides Swift `6.1.x`, but the resolved package graph requires Swift tools `6.2.0`.
+- The current iOS validation blocker on this host is Swift tools compatibility: Xcode 16.4 provides Swift `6.1.2`, but `expo-modules-jsi@56.0.12` declares `// swift-tools-version: 6.2` in `apple/Package.swift`.
+- Disabling Expo precompiled modules does not remove this blocker for the current dependency graph. The iOS build still runs the CocoaPods phase `[CP-User] Build ExpoModulesJSI xcframework`, which resolves the same Swift package and fails before app compilation begins.
+- On July 22, 2026, Apple documents Swift `6.2` support in Xcode 26.x. Treat Xcode 26.0 or newer as the minimum local iOS toolchain for this repo until Expo or the dependency graph changes.
 
 ## 4. Bridge workflow
 

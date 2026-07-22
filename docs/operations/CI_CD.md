@@ -32,6 +32,7 @@
 ### macOS compile lane
 
 - Generate iOS project
+- Use an Xcode image that provides Swift `6.2` or newer for the current Expo SDK 56 dependency graph
 - Compile iOS simulator app
 - Run one Maestro fake-adapter flow on simulator for trusted branches
 
