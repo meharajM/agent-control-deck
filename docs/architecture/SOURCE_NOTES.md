@@ -12,6 +12,7 @@ Checked July 2026. Prefer official documentation and regenerate/check runtime sc
 
 - OpenCode Server documentation
 - Key implementation facts: `opencode serve`; loopback default; HTTP basic authentication through environment variables; OpenAPI 3.1; health/version; session APIs; permission response; diff; SSE global events.
+- Verified on July 22, 2026: the bridge live probe succeeds against local OpenCode `1.17.18` after the bridge server-manager ESM import fix.
 
 ## Claude Code
 
@@ -53,6 +54,7 @@ Every runtime adapter release records:
 - Apple local-network privacy and App Transport Security local-network exception documentation
 - Android Network Security Configuration documentation
 - Key implementation facts: development builds support custom native code; Expo SDK 56 is a stable React Native 0.85 baseline; pnpm monorepos are supported; local-network permission/configuration is required; secure storage is intended for small values.
+- Verified on July 22, 2026: Android local emulator builds require JDK 17 instead of Java 11 for the current Expo SDK 56 and React Native 0.85 toolchain. After moving to JDK 17, `expo run:android` still timed out while starting the `ContextEngine_Test_Device` emulator. iOS simulator builds are currently blocked on Xcode 16.4 because the resolved Swift package graph requires Swift tools `6.2.0` while Xcode 16.4 provides Swift `6.1.x`.
 
 ## Node/bridge packaging
 

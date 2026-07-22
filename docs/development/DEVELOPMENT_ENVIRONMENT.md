@@ -5,11 +5,11 @@
 ### Full mobile and bridge development
 
 - macOS 14 or newer recommended
-- Xcode version required by Expo SDK 56
+- Xcode version required by Expo SDK 56 and by the resolved Swift package graph
 - Android Studio with SDK 36 toolchain
 - Node.js 24 LTS
 - Corepack-enabled pnpm
-- JDK 17 or the Expo/React Native required version
+- JDK 17 for current Android local builds
 
 A macOS machine is the only environment that can locally build both iOS and Android.
 
@@ -18,7 +18,7 @@ A macOS machine is the only environment that can locally build both iOS and Andr
 - Windows 11, current Ubuntu LTS, or macOS
 - Android Studio
 - Node.js 24 LTS
-- JDK
+- JDK 17
 
 ### Bridge/protocol development only
 
@@ -51,7 +51,25 @@ pnpm --filter @agent-deck/mobile expo run:ios
 pnpm --filter @agent-deck/mobile expo run:android
 ```
 
+On this host, use the deterministic Android simulator wrapper instead of relying on Expo to boot an AVD itself:
+
+```bash
+pnpm --filter @agent-deck/mobile run android:simulator
+```
+
+The wrapper:
+
+- uses JDK 17 from `/opt/homebrew/opt/openjdk@17/...` when `JAVA_HOME` is unset;
+- reuses an already-booted Android emulator when one exists;
+- otherwise starts `ContextEngine_Test_Device`, waits for `sys.boot_completed=1`, then runs `expo run:android --device <avd-name> --no-bundler`.
+
 A native rebuild is needed after adding or changing native modules/config plugins, but ordinary TypeScript changes use the normal Metro fast-refresh workflow.
+
+Verified local host results on July 22, 2026:
+
+- Android local builds advanced only after replacing Java 11 with JDK 17.
+- The current Android validation blocker on this host is emulator startup reliability: `expo run:android` timed out while starting the `ContextEngine_Test_Device` emulator.
+- The current iOS validation blocker on this host is Swift tools compatibility: Xcode 16.4 provides Swift `6.1.x`, but the resolved package graph requires Swift tools `6.2.0`.
 
 ## 4. Bridge workflow
 

@@ -22,6 +22,8 @@ Agent Deck provides one low-context mobile interface that answers four questions
 3. What decision is required?
 4. What will happen after that decision?
 
+The primary app surface is a single control deck: every active agent appears as a state key, tapping a key reveals details, and three configurable high-frequency commands remain within reach. Recently completed agents stay visible for one hour unless dismissed. Setup, diagnostics, and history remain available without occupying persistent navigation.
+
 ## Local-first promise
 
 The base product works without a vendor-operated cloud server.
@@ -61,6 +63,8 @@ This repository now contains both the blueprint and an active implementation. Cu
 - Security and pairing foundations exist in `packages/crypto` and `packages/bridge-pairing`.
 - QA harnesses and conformance and chaos scenarios exist in `packages/qa-scenarios`.
 - The current workspace baseline is a green `pnpm test` and `pnpm typecheck`.
+- A live OpenCode bridge probe is verified against local OpenCode `1.17.18` after the bridge server-manager ESM fix.
+- Local simulator validation is still blocked by host tooling: Android advanced after switching from Java 11 to JDK 17, but `expo run:android` timed out while starting the `ContextEngine_Test_Device` emulator; iOS simulator builds fail on Xcode 16.4 because the resolved Swift package graph requires Swift tools `6.2.0` while Xcode 16.4 only provides Swift `6.1.x`.
 
 Known QA-readiness gaps remain:
 
@@ -121,4 +125,4 @@ Before coding, read:
 7. [Installation and User Onboarding](docs/product/INSTALLATION_AND_USER_ONBOARDING.md)
 8. [Implementation Readiness Checklist](docs/planning/IMPLEMENTATION_READINESS_CHECKLIST.md)
 
-The only unavoidable external requirements are platform/runtime prerequisites: macOS/Xcode for iOS builds, user-installed/authenticated coding runtimes, and optional server infrastructure for reliable background push. None blocks the LAN/private-network MVP.
+The only unavoidable external requirements are platform/runtime prerequisites: macOS/Xcode for iOS builds, Android Studio plus JDK 17 for Android emulator builds, user-installed/authenticated coding runtimes, and optional server infrastructure for reliable background push. None blocks the LAN/private-network MVP, but current local simulator validation remains host-toolchain dependent.

@@ -34,6 +34,12 @@ A runtime version newer than the maximum tested version may connect in compatibi
 
 ## 4. OS test matrix
 
+Current verified host constraints on July 22, 2026:
+
+- Android local emulator builds require JDK 17 for the current Expo SDK 56 and React Native 0.85 toolchain; Java 11 is insufficient.
+- Local `expo run:android` validation is not yet reliable on this host because the `ContextEngine_Test_Device` emulator timed out during startup after the JDK issue was corrected.
+- Local iOS simulator validation is currently blocked on Xcode 16.4 because the resolved Swift package graph requires Swift tools `6.2.0` while Xcode 16.4 only provides Swift `6.1.x`.
+
 ### Every release
 
 - Current macOS arm64
