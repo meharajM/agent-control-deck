@@ -7,3 +7,4 @@ dist/
 apps/bridge/*.db
 apps/bridge/*.db-*
 apps/mobile/.expo/
+apps/mobile/android/.kotlin/
