@@ -65,4 +65,4 @@ Coordinator / release maintainer; suggested secondary reviewers are bridge/secur
 
 - Branch: `main` (explicitly requested by the user for this release integration).
 - Primary commit: `cc673d0`.
-- Handoff commit: pending at file creation; tag will point to the final handoff commit.
+- Handoff was created in commit `c843f63`; the final release tag includes the follow-up handoff metadata update.
