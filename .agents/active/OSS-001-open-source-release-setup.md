@@ -64,7 +64,7 @@ The repository has working bridge and mobile foundations but user-facing setup i
 - [x] README and public repository metadata clearly explain scope, install, security, support, and contribution paths.
 - [x] Android debug artifact and iOS device/simulator artifact build successfully on the current host.
 - [x] CI and tag release workflows are reproducible and do not contain secrets.
-- [ ] Version tag is pushed to the configured origin after validation.
+- [x] Version tag is pushed to the configured origin after validation.
 
 ## Required tests
 
