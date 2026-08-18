@@ -45,7 +45,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: cd apps/mobile/ios && pod install --deployment
+      - run: cd apps/mobile/ios && pod install
       - run: >-
           xcodebuild -workspace apps/mobile/ios/AgentDeck.xcworkspace
           -scheme AgentDeck -configuration Release -sdk iphonesimulator
