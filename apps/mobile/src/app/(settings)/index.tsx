@@ -9,8 +9,8 @@ import {
   View,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import { useConnectionStore } from "../../store/connection-store.js";
-import { validatePrivateEndpoint } from "../../services/route-selection.js";
+import { useConnectionStore } from "../../store/connection-store";
+import { validatePrivateEndpoint } from "../../services/route-selection";
 
 const PRIVATE_ENDPOINT_KEY = "agentdeck_private_endpoint";
 const AUTO_FALLBACK_KEY = "agentdeck_auto_fallback";
@@ -210,7 +210,7 @@ export default function SettingsScreen() {
         </Text>
 
         {statusText ? (
-          <Text style={styles.statusText} accessibilityRole="status">
+          <Text style={styles.statusText} accessibilityLiveRegion="polite">
             {statusText}
           </Text>
         ) : null}

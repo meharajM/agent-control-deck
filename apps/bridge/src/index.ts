@@ -1,6 +1,7 @@
 export { BridgeApp } from './bridge-app.js';
 export {
   BRIDGE_RUNTIME_OPTIONS,
+  parseBridgeDevMode,
   parseBridgeRuntime,
 } from './runtime-selection.js';
 export type { BridgeAppConfig } from './bridge-app.js';

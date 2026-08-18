@@ -25,11 +25,12 @@ V1 runtime scope is limited to Codex and OpenCode. Tasks for other runtimes rema
 - **MOB-001:** Navigation and local state store
 - **MOB-002:** Host/session cache schema
 - **MOB-003:** Connection/reconnect state machine
-- **MOB-004:** Session board
-- **MOB-005:** Attention queue
+- **MOB-004:** Initial session board (superseded by MOB-009 control deck)
+- **MOB-005:** Initial attention queue (consolidated into MOB-009)
 - **MOB-006:** Approval/question screens
 - **MOB-007:** Offline/stale behavior
 - **MOB-008:** Accessibility baseline
+- **MOB-009:** Single-screen agent control deck, completion retention, configurable commands, and desktop-focus UX
 
 ## Codex
 
@@ -51,7 +52,7 @@ V1 runtime scope is limited to Codex and OpenCode. Tasks for other runtimes rema
 ## Security/networking
 
 - **SEC-001:** Host/device identity abstraction
-- **SEC-002:** One-time QR pairing
+- **SEC-002:** One-time four-digit local pairing
 - **SEC-003:** Direct application-encrypted WebSocket
 - **SEC-004:** Secure mobile key storage
 - **SEC-005:** Revocation

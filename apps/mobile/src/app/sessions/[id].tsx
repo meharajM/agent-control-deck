@@ -9,9 +9,9 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSessionStore } from "../../store/session-store.js";
-import { sendInstruction, cancelSession, answerQuestion } from "../../services/command-sender.js";
-import type { NormalizedApproval, NormalizedQuestion } from "../../types.js";
+import { useSessionStore } from "../../store/session-store";
+import { sendInstruction, cancelSession, answerQuestion } from "../../services/command-sender";
+import type { NormalizedApproval, NormalizedQuestion } from "../../types";
 
 function stateLabel(state: string): string {
   switch (state) {

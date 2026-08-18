@@ -1,4 +1,4 @@
-import type { UcpEvent } from "../types.js";
+import type { UcpEvent } from "../types";
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const BASE_DELAY_MS = 1000;
@@ -12,7 +12,7 @@ export type UcpClientStatus =
 
 export interface UcpClientCallbacks {
   onEvent(event: UcpEvent): void;
-  onConnected(hostId: string): void;
+  onConnected(hostId: string, hostName?: string): void;
   onDisconnected(): void;
   onError(err: Error): void;
 }
@@ -44,6 +44,9 @@ export interface UcpClientOpts {
   appVersion?: string;
   crypto?: UcpClientCrypto;
   hostPublicKey?: string;
+  pairingNonce?: string;
+  pairingCode?: string;
+  getLastSyncSequence?: () => number;
 }
 
 /**
@@ -70,6 +73,9 @@ export class UcpClient {
   private publicKeyBase64: string | null = null;
   private sessionKeyBase64: string | null = null;
   private outboundSequence = 0;
+  private pairingNonce: string | null = null;
+  private pairingCode: string | null = null;
+  private getLastSyncSequence: () => number;
 
   constructor(
     url: string,
@@ -85,13 +91,16 @@ export class UcpClient {
     if (opts.hostPublicKey) {
       this._hostPublicKey = opts.hostPublicKey;
     }
+    this.pairingNonce = opts.pairingNonce ?? null;
+    this.pairingCode = opts.pairingCode ?? null;
+    this.getLastSyncSequence = opts.getLastSyncSequence ?? (() => 0);
   }
 
   private _hostPublicKey: string | null = null;
 
   /**
    * Set the host public key for session key derivation.
-   * Called after QR scan decodes the host public key.
+   * Called after the pairing code supplies the host public key.
    */
   setHostPublicKey(key: string): void {
     this._hostPublicKey = key;
@@ -106,7 +115,7 @@ export class UcpClient {
   }
 
   /**
-   * Get the device public key for QR pairing / registration.
+   * Get the device public key for pairing / registration.
    */
   getDevicePublicKey(): string | null {
     return this.publicKeyBase64;
@@ -189,37 +198,15 @@ export class UcpClient {
       this.status = "connected";
       this.reconnectAttempts = 0;
 
-      this.ensureDeviceKeysSync();
-
-      // Build handshake payload — include device public key when crypto is available
-      const handshakePayload: Record<string, unknown> = {
-        supportedVersions: [1],
-        deviceId: this.deviceId,
-        deviceName: "Mobile",
-        platform: "unknown",
-        appVersion: this.appVersion,
-        lastAcknowledgedSequence: 0,
-        capabilities: {
-          voice: false,
-          binaryAudio: false,
-          biometrics: false,
-          pushNotifications: false,
-        },
-      };
-
-      if (this.crypto && this.publicKeyBase64) {
-        handshakePayload.devicePublicKey = this.publicKeyBase64;
-      }
-
-      const initMsg = {
-        protocol: "ucp",
-        version: 1,
-        messageId: this.generateId("msg"),
-        type: "connection.initialize",
-        timestamp: new Date().toISOString(),
-        payload: handshakePayload,
-      };
-      ws.send(JSON.stringify(initMsg));
+      void this.sendHandshake(ws).catch((error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.callbacks.onError(err);
+        if (ws !== this.ws) return;
+        this.intentionalClose = true;
+        this.status = "closed";
+        this.closeSocket();
+        this.callbacks.onDisconnected();
+      });
     };
 
     ws.onmessage = (evt: MessageEvent) => {
@@ -236,6 +223,62 @@ export class UcpClient {
     ws.onerror = () => {
       this.callbacks.onError(new Error("WebSocket error"));
     };
+  }
+
+  private async sendHandshake(ws: any): Promise<void> {
+    if (this.crypto && !this.publicKeyBase64) {
+      const keys = await this.crypto.generateKeyPair();
+      this.publicKeyBase64 = keys.publicKeyBase64;
+      this.privateKeyBase64 = keys.privateKeyBase64;
+    }
+
+    // The bridge encrypts connection.initialized immediately after accepting
+    // the handshake. Derive before sending so that first encrypted response
+    // can be opened; waiting for that response would be a circular handshake.
+    if (this.crypto && this.privateKeyBase64 && this._hostPublicKey) {
+      const { sessionKeyBase64 } = this.crypto.deriveSessionKey(
+        this.privateKeyBase64,
+        this._hostPublicKey,
+      );
+      this.sessionKeyBase64 = sessionKeyBase64;
+    }
+
+      // Build handshake payload — include device public key when crypto is available
+      const handshakePayload: Record<string, unknown> = {
+        supportedVersions: [1],
+        deviceId: this.deviceId,
+        deviceName: "Mobile",
+        platform: "unknown",
+        appVersion: this.appVersion,
+        lastSyncSequence: this.getLastSyncSequence(),
+        capabilities: {
+          voice: false,
+          binaryAudio: false,
+          biometrics: false,
+          pushNotifications: false,
+        },
+      };
+
+      if (this.pairingNonce) {
+        handshakePayload.pairingNonce = this.pairingNonce;
+      }
+      if (this.pairingCode) {
+        handshakePayload.pairingCode = this.pairingCode;
+      }
+
+      if (this.crypto && this.publicKeyBase64) {
+        handshakePayload.devicePublicKey = this.publicKeyBase64;
+      }
+
+      const initMsg = {
+        protocol: "ucp",
+        version: 1,
+        messageId: this.generateId("msg"),
+        type: "connection.initialize",
+        timestamp: new Date().toISOString(),
+        payload: handshakePayload,
+      };
+      if (ws === this.ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(initMsg));
   }
 
   private handleFrame(raw: string): void {
@@ -274,6 +317,10 @@ export class UcpClient {
     if (type === "connection.initialized") {
       const p = msg["payload"] as Record<string, unknown> | undefined;
       const hostId = typeof p?.["hostId"] === "string" ? p["hostId"] : "unknown";
+      const hostName =
+        typeof p?.["hostName"] === "string" && p["hostName"].trim().length > 0
+          ? p["hostName"]
+          : undefined;
       this.hostId = hostId;
 
       // Derive session key if we have crypto and host public key
@@ -285,11 +332,21 @@ export class UcpClient {
         this.sessionKeyBase64 = sessionKeyBase64;
       }
 
-      this.callbacks.onConnected(hostId);
+      this.callbacks.onConnected(hostId, hostName);
       return;
     }
 
-    const payload = (msg["payload"] ?? {}) as Record<string, unknown>;
+    const payload = { ...((msg["payload"] ?? {}) as Record<string, unknown>) };
+    const sessionId = msg["sessionId"];
+    if (typeof sessionId === "string") {
+      if (typeof payload.id !== "string") payload.id = sessionId;
+      if (typeof payload.updatedAt !== "string" && typeof msg.timestamp === "string") {
+        payload.updatedAt = msg.timestamp;
+      }
+      if (typeof payload.createdAt !== "string" && typeof msg.timestamp === "string") {
+        payload.createdAt = msg.timestamp;
+      }
+    }
     const event = { type, payload } as UcpEvent;
     this.callbacks.onEvent(event);
   }

@@ -29,6 +29,7 @@
     "@agent-deck/crypto": "workspace:*",
     "@agent-deck/protocol": "workspace:*",
     "better-sqlite3": "^12.0.0",
+    "bonjour-service": "1.4.3",
     "ws": "^8.18.0"
   },
   "devDependencies": {

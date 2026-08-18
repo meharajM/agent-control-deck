@@ -5,6 +5,33 @@ import type { JsonRpcNotification } from '../schema/codex-types.js';
 describe('event-normalizer', () => {
   const bridgeSessionId = 'bridge-session-123';
 
+  it('normalizes current thread/started to session.started', () => {
+    const notification: JsonRpcNotification = {
+      jsonrpc: '2.0',
+      method: 'thread/started',
+      params: { thread: { id: 'thread-current', cwd: '/home/user/project', status: { type: 'idle' } } },
+    };
+
+    const event = normalizeCodexEvent(notification, bridgeSessionId);
+    expect(event).toEqual(expect.objectContaining({
+      type: 'session.started',
+      sessionId: bridgeSessionId,
+      payload: { threadId: 'thread-current', workingDirectory: '/home/user/project' },
+    }));
+  });
+
+  it('normalizes current turn/completed interruption to session.cancelled', () => {
+    const notification: JsonRpcNotification = {
+      jsonrpc: '2.0',
+      method: 'turn/completed',
+      params: { turn: { id: 'turn-current', status: 'interrupted', items: [] } },
+    };
+
+    const event = normalizeCodexEvent(notification, bridgeSessionId);
+    expect(event!.type).toBe('session.cancelled');
+    expect(event!.payload).toEqual({ turnId: 'turn-current', items: [] });
+  });
+
   it('normalizes thread_created to session.started', () => {
     const notification: JsonRpcNotification = {
       jsonrpc: '2.0',

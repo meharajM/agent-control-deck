@@ -78,8 +78,10 @@ Exit criteria:
 Deliver:
 
 - Pair-development host flow
-- Attention screen
-- Session board/detail
+- Single-screen adaptive agent control deck
+- One-hour completed-agent retention and local dismissal
+- Inline selected-agent detail and capability-gated desktop focus request
+- Three default configurable command keys with capability filtering
 - Approval and question UI
 - Text steering
 - Mobile cache
@@ -140,10 +142,10 @@ Exit criteria:
 Deliver:
 
 - Host/device identity
-- One-time QR pairing
+- One-time four-digit pairing with Bonjour discovery
 - Direct application-encrypted WebSocket
 - Interface selection
-- QR/manual endpoint connection; optional mDNS after MVP
+- Bonjour discovery with manual endpoint fallback for development and emulator testing
 - Device revocation
 - iOS Keychain/Android Keystore integration
 - Biometric policy
@@ -151,12 +153,12 @@ Deliver:
 Exit criteria:
 
 - No unauthenticated control path
-- QR replay fails
+- Pairing-code replay fails
 - Revoked active device disconnects
 
 Current state:
 
-- Core crypto, QR payload, device-grant, and biometric-gate implementation exists in the repository.
+- Core crypto, four-digit pairing, device-grant, and biometric-gate implementation exists in the repository.
 - Release-gate integration is still open for durable nonces and device grants and for making authenticated encrypted transport the default bridge startup path.
 
 ### Phase 6 — Reliability and chaos hardening
@@ -299,12 +301,11 @@ MVP includes:
 
 - Local bridge
 - Direct same-network connection
-- QR pairing
+- Four-digit local pairing
 - Fake adapter
 - Codex adapter
 - OpenCode adapter
-- Session board
-- Attention queue
+- Single-screen active-agent and attention control deck
 - Text steering
 - Structured approvals
 - Reconnect/replay/snapshot
@@ -359,8 +360,7 @@ Each phase requires:
 ### Sprint 3
 
 - Mobile navigation/state store
-- Session board
-- Attention queue
+- Initial session board and attention queue, consolidated into the control deck
 - Direct development connection
 
 ### Sprint 4

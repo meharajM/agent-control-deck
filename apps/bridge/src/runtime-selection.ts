@@ -14,3 +14,7 @@ export function parseBridgeRuntime(value: string | undefined): BridgeRuntimeSele
     `Unsupported BRIDGE_RUNTIME "${value}". Expected one of: ${BRIDGE_RUNTIME_OPTIONS.join(', ')}`
   );
 }
+
+export function parseBridgeDevMode(value: string | undefined): boolean {
+  return value === 'true' || value === '1';
+}

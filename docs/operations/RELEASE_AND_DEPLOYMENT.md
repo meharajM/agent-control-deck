@@ -47,7 +47,7 @@ Document:
 
 - LAN-only installation
 - Firewall rule
-- QR pairing
+- 4-digit local pairing
 - Tailscale/private endpoint
 - Complete disablement of optional hosted services
 

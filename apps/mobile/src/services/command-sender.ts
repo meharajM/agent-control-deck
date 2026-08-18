@@ -1,4 +1,4 @@
-import { sendCommand } from "./bridge-connection.js";
+import { sendCommand } from "./bridge-connection";
 
 function generateIdempotencyKey(): string {
   if (
@@ -8,6 +8,10 @@ function generateIdempotencyKey(): string {
     return crypto.randomUUID();
   }
   return Math.random().toString(36).slice(2);
+}
+
+function generateCommandId(): string {
+  return `cmd_${generateIdempotencyKey()}`;
 }
 
 /**
@@ -49,7 +53,9 @@ export function approveApproval(
   decision: string,
   expectedVersion: number,
 ): void {
+  const commandId = generateCommandId();
   sendCommand("command/approve", {
+    commandId,
     approvalId,
     decision,
     expectedVersion,
@@ -76,24 +82,50 @@ export async function approveApprovalWithBiometric(
 }
 
 export function sendInstruction(sessionId: string, text: string): void {
+  const commandId = generateCommandId();
   sendCommand("command/send", {
+    commandId,
     sessionId,
     text,
     idempotencyKey: generateIdempotencyKey(),
   });
 }
 
+export function startSession(instruction = "Start a new agent session"): string {
+  const commandId = generateCommandId();
+  sendCommand("command/start", {
+    commandId,
+    instruction,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return commandId;
+}
+
 export function cancelSession(sessionId: string): void {
+  const commandId = generateCommandId();
   sendCommand("command/cancel", {
+    commandId,
     sessionId,
     idempotencyKey: generateIdempotencyKey(),
   });
 }
 
 export function answerQuestion(questionId: string, answer: unknown): void {
+  const commandId = generateCommandId();
   sendCommand("command/answer", {
+    commandId,
     questionId,
     answer,
     idempotencyKey: generateIdempotencyKey(),
   });
+}
+
+export function focusSession(sessionId: string): string {
+  const commandId = generateCommandId();
+  sendCommand("session.focus", {
+    commandId,
+    sessionId,
+    idempotencyKey: generateIdempotencyKey(),
+  });
+  return commandId;
 }

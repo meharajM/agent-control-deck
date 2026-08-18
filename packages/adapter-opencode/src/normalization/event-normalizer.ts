@@ -1,241 +1,154 @@
-/**
- * Event Normalizer
- * Maps OpenCode SSE events to bridge-neutral AdapterEvent types.
- * // ponytail: pure function mapping, no side effects
- */
+/** Normalize OpenCode v2 SSE events into the bridge adapter event shape. */
 
 import type { AdapterEvent } from '@agent-deck/adapter-contract';
 
 export interface OpenCodeEvent {
   type: string;
-  properties: Record<string, unknown>;
+  data?: Record<string, unknown>;
+  properties?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
 }
 
-interface SessionStateProps {
-  sessionId: string;
-  status: string;
-}
-
-interface PermissionEventProps {
-  id: string;
-  sessionID: string;
-  title: string;
-  metadata: Record<string, unknown>;
-  time: { created: number };
-}
-
-interface MessageEventProps {
-  info: {
-    id: string;
-    sessionId: string;
-    role: string;
-    content: string;
-    timestamp: number;
-  };
-}
-
-interface MessagePartEventProps {
-  part: {
-    id: string;
-    sessionID: string;
-    type: string;
-    state?: { status: string };
-    tool?: string;
-    callID?: string;
-  };
-}
-
-/**
- * Convert OpenCode event to normalized AdapterEvent.
- * Returns null for events that don't map to bridge events.
- */
 export function normalizeEvent(event: OpenCodeEvent): AdapterEvent | null {
+  const p = event.data ?? event.properties ?? event.payload ?? {};
   const timestamp = new Date().toISOString();
+  const part = recordValue(p.part);
+  const sessionId = stringValue(p.sessionID ?? p.sessionId ?? part?.sessionID ?? part?.sessionId ?? (p.info as Record<string, unknown> | undefined)?.sessionID ?? (p.info as Record<string, unknown> | undefined)?.sessionId);
+  if (!sessionId) return null;
 
   switch (event.type) {
-    case 'session.created': {
-      const props = event.properties as unknown as SessionStateProps;
-      return {
-        type: 'session.started',
-        sessionId: props.sessionId,
-        payload: { status: props.status },
-        timestamp,
-      };
-    }
-
+    case 'session.created':
+      return { type: 'session.started', sessionId, payload: { status: p.status ?? 'idle' }, timestamp };
     case 'session.updated': {
-      const props = event.properties as unknown as SessionStateProps;
-      if (props.status === 'idle' || props.status === 'completed') {
-        return {
-          type: 'session.completed',
-          sessionId: props.sessionId,
-          payload: { status: props.status },
-          timestamp,
-        };
-      }
-      if (props.status === 'error') {
-        return {
-          type: 'session.failed',
-          sessionId: props.sessionId,
-          payload: { status: props.status },
-          timestamp,
-        };
-      }
+      const info = recordValue(p.info);
+      const status = stringValue(p.status ?? info?.status);
+      if (status === 'idle' || status === 'completed') return { type: 'session.completed', sessionId, payload: { status }, timestamp };
+      if (status === 'error' || status === 'failed') return { type: 'session.failed', sessionId, payload: { status }, timestamp };
       return null;
     }
-
-    case 'session.deleted': {
-      const props = event.properties as unknown as { sessionId: string };
+    case 'session.deleted':
+      return { type: 'session.completed', sessionId, payload: { status: 'deleted' }, timestamp };
+    case 'session.error':
+      return { type: 'session.failed', sessionId, payload: { error: errorMessage(p.error) }, timestamp };
+    case 'session.idle':
+      return { type: 'session.idle', sessionId, payload: {}, timestamp };
+    case 'session.status':
+      return normalizeStatusEvent(sessionId, p.status, timestamp);
+    case 'session.next.step.started':
+      return { type: 'session.working', sessionId, payload: {}, timestamp };
+    case 'session.next.step.ended':
       return {
         type: 'session.completed',
-        sessionId: props.sessionId,
-        payload: { status: 'deleted' },
+        sessionId,
+        payload: { status: 'completed', cost: p.cost, tokens: p.tokens },
         timestamp,
       };
-    }
-
-    case 'session.error': {
-      const props = event.properties as unknown as { sessionID?: string; error?: unknown };
-      return {
-        type: 'session.failed',
-        sessionId: props.sessionID ?? '',
-        payload: { error: String(props.error ?? 'Unknown error') },
-        timestamp,
-      };
-    }
-
-    case 'session.idle': {
-      const props = event.properties as unknown as { sessionID: string };
-      return {
-        type: 'session.idle',
-        sessionId: props.sessionID,
-        payload: {},
-        timestamp,
-      };
-    }
-
-    case 'permission.updated': {
-      const props = event.properties as unknown as PermissionEventProps;
+    case 'permission.updated':
+      return normalizeLegacyPermission(sessionId, p, timestamp);
+    case 'permission.asked':
+    case 'permission.v2.asked':
       return {
         type: 'approval.requested',
-        sessionId: props.sessionID,
+        sessionId,
         payload: {
-          approvalId: props.id,
-          title: props.title,
+          approvalId: p.id,
+          title: p.title ?? p.action ?? 'Permission request',
           category: 'permission',
-          options: extractPermissionOptions(props.metadata),
-          metadata: props.metadata,
+          options: ['once', 'always', 'reject'],
+          action: p.action,
+          resources: p.resources,
+          metadata: p.metadata,
         },
         timestamp,
       };
-    }
-
-    case 'message.part.updated': {
-      const props = event.properties as unknown as MessagePartEventProps;
-      const part = props.part;
-
-      if (part.type === 'tool' && part.state?.status === 'pending') {
-        return {
-          type: 'instruction.pending',
-          sessionId: part.sessionID,
-          payload: {
-            toolName: part.tool,
-            callId: part.callID,
-            input: part.state,
-          },
-          timestamp,
-        };
-      }
-
-      if (part.type === 'tool' && part.state?.status === 'completed') {
-        return {
-          type: 'instruction.completed',
-          sessionId: part.sessionID,
-          payload: {
-            toolName: part.tool,
-            callId: part.callID,
-            output: (part.state as { output?: string }).output,
-          },
-          timestamp,
-        };
-      }
-
-      if (part.type === 'step-start') {
-        return {
-          type: 'session.step_started',
-          sessionId: part.sessionID,
-          payload: { stepId: part.id },
-          timestamp,
-        };
-      }
-
-      if (part.type === 'step-finish') {
-        return {
-          type: 'session.step_finished',
-          sessionId: part.sessionID,
-          payload: {
-            stepId: part.id,
-            cost: (part as { cost?: number }).cost,
-            tokens: (part as { tokens?: unknown }).tokens,
-          },
-          timestamp,
-        };
-      }
-      return null;
-    }
-
+    case 'permission.replied':
+    case 'permission.v2.replied':
+      return { type: 'approval.resolved', sessionId, payload: { approvalId: p.requestID, decision: p.reply }, timestamp };
+    case 'question.asked':
+    case 'question.v2.asked':
+      return { type: 'question.requested', sessionId, payload: { questionId: p.id, questions: p.questions, tool: p.tool }, timestamp };
+    case 'question.replied':
+    case 'question.v2.replied':
+      return { type: 'question.answered', sessionId, payload: { questionId: p.requestID, answers: p.answers }, timestamp };
+    case 'question.rejected':
+    case 'question.v2.rejected':
+      return { type: 'question.answered', sessionId, payload: { questionId: p.requestID, answers: [] }, timestamp };
     case 'message.updated': {
-      const props = event.properties as unknown as MessageEventProps;
-      const info = props.info;
-      return {
-        type: 'session.message',
-        sessionId: info.sessionId,
-        payload: {
-          messageId: info.id,
-          role: info.role,
-          content: info.content,
-        },
-        timestamp,
-      };
+      const info = recordValue(p.info) ?? p;
+      return { type: 'session.message', sessionId, payload: { messageId: info.id, role: info.role, content: info.content }, timestamp };
     }
-
+    case 'message.part.updated':
+      return normalizePart(sessionId, recordValue(p.part), timestamp);
+    case 'session.next.tool.called':
+      return { type: 'instruction.pending', sessionId, payload: { toolName: p.tool, callId: p.callID, input: p.input }, timestamp };
+    case 'session.next.tool.success':
+      return { type: 'instruction.completed', sessionId, payload: { callId: p.callID, output: p.result ?? p.content }, timestamp };
+    case 'session.next.tool.failed':
+      return { type: 'instruction.failed', sessionId, payload: { callId: p.callID, error: errorMessage(p.error) }, timestamp };
+    case 'session.next.text.delta':
+    case 'message.part.delta':
+      return { type: 'message.delta', sessionId, payload: { messageId: p.assistantMessageID ?? p.messageID, delta: p.delta }, timestamp };
     default:
       return null;
   }
 }
 
-/**
- * Extract permission decision options from OpenCode permission metadata.
- * OpenCode permissions typically have options like 'allow', 'deny', 'allow_once', etc.
- */
-function extractPermissionOptions(metadata: Record<string, unknown>): string[] {
-  if (Array.isArray(metadata.options)) {
-    return metadata.options.map((o) => String(o));
-  }
-  // Fallback to standard permission decisions
-  return ['allow', 'deny'];
+function normalizeLegacyPermission(sessionId: string, p: Record<string, unknown>, timestamp: string): AdapterEvent {
+  const metadata = recordValue(p.metadata) ?? {};
+  return {
+    type: 'approval.requested',
+    sessionId,
+    payload: { approvalId: p.id, title: p.title, category: 'permission', options: extractPermissionOptions(metadata), metadata },
+    timestamp,
+  };
 }
 
-/**
- * Normalize OpenCode session status to bridge session state.
- */
-export function normalizeSessionStatus(status: string): 'running' | 'idle' | 'completed' | 'failed' {
-  switch (status) {
-    case 'running':
-    case 'busy':
-      return 'running';
+function normalizePart(sessionId: string, part: Record<string, unknown> | null, timestamp: string): AdapterEvent | null {
+  if (!part) return null;
+  const state = recordValue(part.state);
+  if (part.type === 'tool' && state?.status === 'pending') return { type: 'instruction.pending', sessionId, payload: { toolName: part.tool, callId: part.callID, input: state }, timestamp };
+  if (part.type === 'tool' && state?.status === 'completed') return { type: 'instruction.completed', sessionId, payload: { toolName: part.tool, callId: part.callID, output: state.output }, timestamp };
+  if (part.type === 'step-start') return { type: 'session.step_started', sessionId, payload: { stepId: part.id }, timestamp };
+  if (part.type === 'step-finish') return { type: 'session.step_finished', sessionId, payload: { stepId: part.id, cost: part.cost, tokens: part.tokens }, timestamp };
+  return null;
+}
+
+function normalizeStatusEvent(sessionId: string, status: unknown, timestamp: string): AdapterEvent | null {
+  const statusType = typeof status === 'string' ? status : recordValue(status)?.type;
+  if (statusType === 'idle') return { type: 'session.idle', sessionId, payload: { status: statusType }, timestamp };
+  if (statusType === 'error' || statusType === 'failed') return { type: 'session.failed', sessionId, payload: { status: statusType }, timestamp };
+  return statusType ? { type: 'session.working', sessionId, payload: { status: statusType }, timestamp } : null;
+}
+
+function extractPermissionOptions(metadata: Record<string, unknown>): string[] {
+  return Array.isArray(metadata.options) ? metadata.options.map(String) : ['allow', 'deny'];
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function errorMessage(value: unknown): string {
+  const error = recordValue(value);
+  const data = recordValue(error?.data);
+  return String(data?.message ?? error?.message ?? value ?? 'Unknown error');
+}
+
+export function normalizeSessionStatus(status: string | { type?: string } | undefined): 'running' | 'idle' | 'completed' | 'failed' {
+  const statusType = typeof status === 'string' ? status : status?.type;
+  switch (statusType) {
     case 'idle':
-    case 'waiting':
-      return 'idle';
+    case 'waiting': return 'idle';
     case 'completed':
     case 'finished':
-    case 'done':
-      return 'completed';
+    case 'done': return 'completed';
     case 'error':
     case 'failed':
-    case 'crashed':
-      return 'failed';
-    default:
-      return 'running';
+    case 'crashed': return 'failed';
+    default: return 'running';
   }
 }

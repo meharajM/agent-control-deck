@@ -95,6 +95,10 @@ export class AdapterManager {
       this.answerQuestion(event);
     }
 
+    if (event.type.startsWith('session.')) {
+      this.updateSession(event);
+    }
+
     const envelope = buildEventEnvelope(event, this.deps.hostId, sequence);
     this.deps.broadcast(envelope);
   }
@@ -171,6 +175,45 @@ export class AdapterManager {
 
   private getRuntimeInstanceId(adapterId: string): string {
     return `runtime:${adapterId}`;
+  }
+
+  private updateSession(event: AdapterEvent): void {
+    const payload = event.payload as Record<string, unknown>;
+    const states: Record<string, string> = {
+      'session.started': 'running',
+      'session.completed': 'completed',
+      'session.failed': 'failed',
+      'session.cancelled': 'cancelled',
+      'session.interrupted': 'interrupted',
+    };
+    const state = states[event.type];
+    const summary = typeof payload.summary === 'string' ? payload.summary : undefined;
+    const currentAction =
+      typeof payload.currentAction === 'string'
+        ? payload.currentAction
+        : typeof payload.message === 'string'
+          ? payload.message
+          : undefined;
+
+    if (state === undefined && summary === undefined && currentAction === undefined) return;
+
+    this.deps.db
+      .prepare(
+        `UPDATE sessions
+         SET state = COALESCE(@state, state),
+             summary = COALESCE(@summary, summary),
+             current_action = COALESCE(@currentAction, current_action),
+             version = version + 1,
+             updated_at = @updatedAt
+         WHERE id = @id`
+      )
+      .run({
+        id: event.sessionId,
+        state: state ?? null,
+        summary: summary ?? null,
+        currentAction: currentAction ?? null,
+        updatedAt: event.timestamp,
+      });
   }
 
   private createApproval(event: AdapterEvent): void {

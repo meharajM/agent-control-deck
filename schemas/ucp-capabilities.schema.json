@@ -35,6 +35,9 @@
     "fork": {
       "type": "boolean"
     },
+    "desktopFocus": {
+      "type": "boolean"
+    },
     "approvals": {
       "type": "object",
       "required": [

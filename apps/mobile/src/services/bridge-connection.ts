@@ -1,8 +1,8 @@
-import { useConnectionStore } from "../store/connection-store.js";
-import { useSessionStore } from "../store/session-store.js";
-import { UcpClient, type UcpClientCallbacks } from "./ucp-client.js";
-import { DiagnosticsTracker } from "./route-diagnostics.js";
-import type { RouteConfig } from "./route-selection.js";
+import { useConnectionStore } from "../store/connection-store";
+import { useSessionStore } from "../store/session-store";
+import { UcpClient, type UcpClientCallbacks, type UcpClientCrypto } from "./ucp-client";
+import { DiagnosticsTracker } from "./route-diagnostics";
+import type { RouteConfig } from "./route-selection";
 
 let client: UcpClient | null = null;
 let diagnosticsTimer: ReturnType<typeof setInterval> | null = null;
@@ -10,10 +10,28 @@ const diagnosticsTracker = new DiagnosticsTracker();
 
 const DIAGNOSTICS_INTERVAL_MS = 5000;
 
-export function connectToBridge(url: string): void {
+export interface BridgeConnectionOptions {
+  hostPublicKey?: string;
+  pairingNonce?: string;
+  pairingCode?: string;
+  hostName?: string;
+  crypto?: UcpClientCrypto;
+}
+
+export function connectToBridge(url: string, options: BridgeConnectionOptions = {}): void {
   if (client !== null) {
     client.disconnect();
   }
+
+  const store = useConnectionStore.getState();
+  const networkId = getNetworkId();
+  const route = store.selectBestRoute({
+    directEndpoint: url,
+    privateEndpoint: null,
+    lastSuccessfulRoute: networkId ? (store.routeMemory[networkId] ?? null) : null,
+    lastNetworkId: networkId,
+  });
+  const endpoint = route?.selectedEndpoint ?? url;
 
   const callbacks: UcpClientCallbacks = {
     onEvent(event) {
@@ -25,10 +43,11 @@ export function connectToBridge(url: string): void {
       }
       useSessionStore.getState().applyEvent(event);
     },
-    onConnected(hostId) {
+    onConnected(hostId, hostName) {
       const store = useConnectionStore.getState();
       useSessionStore.getState().setConnectionStatus("connected");
       store.onConnected(hostId);
+      if (hostName) store.setHostName(hostName);
 
       // Record route success
       const route = store.selectedRoute;
@@ -48,9 +67,9 @@ export function connectToBridge(url: string): void {
 
       // Attempt route fallback if auto-fallback is enabled
       if (store.autoFallbackEnabled) {
-        const route = store.selectedRoute;
-        if (route) {
-          store.recordRouteFailure(url, route.routeType);
+        const selectedRoute = store.selectedRoute;
+        if (selectedRoute) {
+          store.recordRouteFailure(endpoint, selectedRoute.routeType);
           attemptFallback();
         }
       }
@@ -58,22 +77,26 @@ export function connectToBridge(url: string): void {
     onError(err) {
       const store = useConnectionStore.getState();
       useSessionStore.getState().markStale();
-      store.onError();
+      store.onError(err.message);
       diagnosticsTracker.recordReconnect(err.message);
       stopDiagnosticsTimer();
 
       if (store.autoFallbackEnabled) {
-        const route = store.selectedRoute;
-        if (route) {
-          store.recordRouteFailure(url, route.routeType);
+        const selectedRoute = store.selectedRoute;
+        if (selectedRoute) {
+          store.recordRouteFailure(endpoint, selectedRoute.routeType);
           attemptFallback();
         }
       }
     },
   };
 
-  client = new UcpClient(url, callbacks);
-  useConnectionStore.getState().connect(url);
+  store.connect(endpoint);
+  useSessionStore.getState().setConnectionStatus("connecting");
+  client = new UcpClient(endpoint, callbacks, {
+    ...options,
+    getLastSyncSequence: () => useSessionStore.getState().lastSyncSequence,
+  });
   client.connect();
 }
 
@@ -107,6 +130,7 @@ export function getNetworkId(): string | null {
 
 function startDiagnosticsTimer(): void {
   stopDiagnosticsTimer();
+  useConnectionStore.getState().setDiagnostics(diagnosticsTracker.getDiagnostics());
   diagnosticsTimer = setInterval(() => {
     const diag = diagnosticsTracker.getDiagnostics();
     useConnectionStore.getState().setDiagnostics(diag);

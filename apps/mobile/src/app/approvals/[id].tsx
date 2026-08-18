@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Alert } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSessionStore } from "../../store/session-store.js";
-import { approveApproval } from "../../services/command-sender.js";
+import { useSessionStore } from "../../store/session-store";
+import { approveApproval } from "../../services/command-sender";
 
 export default function ApprovalScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

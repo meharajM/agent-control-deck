@@ -25,6 +25,7 @@ interface SessionMapping {
   opencodeSessionId: string;
   workingDirectory: string | undefined;
   status: 'running' | 'idle' | 'completed' | 'failed';
+  startedEventEmitted: boolean;
   capabilities: AdapterCapabilities;
 }
 
@@ -158,19 +159,19 @@ constructor(options: { cwd?: string } = {}) {
       bridgeSessionId,
       opencodeSessionId: opencodeSession.id,
       workingDirectory: params.workingDirectory ?? undefined,
-      status: normalizeSessionStatus(opencodeSession.status),
+      status: 'idle',
+      startedEventEmitted: false,
       capabilities: SUPPORTED_CAPABILITIES,
     };
 
     this.sessions.set(bridgeSessionId, mapping);
 
-    // Emit session started event
-    this.emit('session_event', {
-      type: 'session.started',
-      sessionId: bridgeSessionId,
-      payload: { opencodeSessionId: opencodeSession.id, workingDirectory: params.workingDirectory },
-      timestamp: new Date().toISOString(),
-    });
+    // Emit session started event. The SSE session.created event is deduplicated below.
+    this.emitStartedEvent(mapping, params.workingDirectory);
+
+    if (params.instruction) {
+      await this.client.sendPrompt(opencodeSession.id, params.instruction);
+    }
 
     return bridgeSessionId;
   }
@@ -180,7 +181,7 @@ constructor(options: { cwd?: string } = {}) {
     this.checkIdempotency(idempotencyKey);
 
     const mapping = this.getSessionMapping(sessionId);
-    await this.client!.sendPrompt(mapping.opencodeSessionId, text);
+    await this.client!.sendPrompt(mapping.opencodeSessionId, text, idempotencyKey);
 
     this.emit('session_event', {
       type: 'instruction.accepted',
@@ -215,7 +216,7 @@ constructor(options: { cwd?: string } = {}) {
     this.checkIdempotency(idempotencyKey);
 
     const mapping = this.getSessionMapping(sessionId);
-    await this.client!.respondToPermission(mapping.opencodeSessionId, approvalId, decision as 'allow' | 'deny');
+    await this.client!.respondToPermission(mapping.opencodeSessionId, approvalId, decision);
 
     this.emit('session_event', {
       type: 'approval.resolved',
@@ -231,24 +232,34 @@ constructor(options: { cwd?: string } = {}) {
     answer: unknown,
     idempotencyKey: string
   ): Promise<void> {
-    // OpenCode uses same messageID mechanism for questions/permissions
-    return this.resolveApproval(sessionId, questionId, String(answer), idempotencyKey);
+    this.ensureNotDisposed();
+    this.checkIdempotency(idempotencyKey);
+    const mapping = this.getSessionMapping(sessionId);
+    const answers = normalizeQuestionAnswer(answer);
+    await this.client!.answerQuestion(mapping.opencodeSessionId, questionId, answers);
+    this.emit('session_event', {
+      type: 'question.answered',
+      sessionId,
+      payload: { questionId, answers, idempotencyKey },
+      timestamp: new Date().toISOString(),
+    });
   }
 
   async reconcile(sessionId: string): Promise<ReconcileResult> {
-    this.ensureNotDisposed();
+    if (this.disposed) return { sessionExists: false };
 
     const mapping = this.sessions.get(sessionId);
     if (!mapping) {
       return { sessionExists: false };
     }
+    if (!this.client) return { sessionExists: false };
     const opencodeSession = await this.client!.getSession(mapping.opencodeSessionId);
 
     if (!opencodeSession) {
       return { sessionExists: false };
     }
 
-    mapping.status = normalizeSessionStatus(opencodeSession.status);
+    if (opencodeSession.status) mapping.status = normalizeSessionStatus(opencodeSession.status);
 
     return {
       sessionExists: true,
@@ -290,8 +301,13 @@ constructor(options: { cwd?: string } = {}) {
 
     // Update local session status
     const mapping = this.sessions.get(sessionId);
+    if (normalized.type === 'session.started') {
+      if (mapping?.startedEventEmitted) return;
+      if (mapping) mapping.startedEventEmitted = true;
+    }
     if (mapping && normalized.type.startsWith('session.')) {
-      mapping.status = (normalized.payload as { status?: string }).status as SessionMapping['status'] ?? mapping.status;
+      const status = (normalized.payload as { status?: string | { type?: string } }).status;
+      if (status) mapping.status = normalizeSessionStatus(status);
     }
 
     // Emit normalized event with bridge session ID
@@ -339,6 +355,7 @@ constructor(options: { cwd?: string } = {}) {
    * Handle unexpected server exit - mark all sessions as failed.
    */
   private handleServerExit(): void {
+    if (this.disposed) return;
     this.client = null;
     for (const [sessionId, mapping] of this.sessions) {
       mapping.status = 'failed';
@@ -349,6 +366,17 @@ constructor(options: { cwd?: string } = {}) {
         timestamp: new Date().toISOString(),
       });
     }
+  }
+
+  private emitStartedEvent(mapping: SessionMapping, workingDirectory: string | undefined): void {
+    if (mapping.startedEventEmitted) return;
+    mapping.startedEventEmitted = true;
+    this.emit('session_event', {
+      type: 'session.started',
+      sessionId: mapping.bridgeSessionId,
+      payload: { opencodeSessionId: mapping.opencodeSessionId, workingDirectory },
+      timestamp: new Date().toISOString(),
+    });
   }
 
   private ensureNotDisposed(): void {
@@ -391,4 +419,14 @@ constructor(options: { cwd?: string } = {}) {
  */
 export function createOpenCodeAdapter(options?: { cwd?: string }): RuntimeAdapter {
   return new OpenCodeAdapter(options);
+}
+
+function normalizeQuestionAnswer(answer: unknown): string[][] {
+  if (typeof answer === 'string') return [[answer]];
+  if (Array.isArray(answer) && answer.every((item) => typeof item === 'string')) return [answer as string[]];
+  if (Array.isArray(answer) && answer.every((item) => Array.isArray(item) && item.every((value) => typeof value === 'string'))) {
+    return answer as string[][];
+  }
+  if (answer && typeof answer === 'object' && 'answers' in answer) return normalizeQuestionAnswer((answer as { answers: unknown }).answers);
+  throw new Error('Unsupported OpenCode question answer');
 }

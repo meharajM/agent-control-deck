@@ -3,6 +3,7 @@ import type {
   ApprovalResolvedPayload,
   ApprovalRequestedPayload,
   ApprovalUpdatedPayload,
+  CommandOutcomePayload,
   ConnectionStatus,
   HostSnapshotPayload,
   NormalizedApproval,
@@ -13,9 +14,10 @@ import type {
   SessionCompletedPayload,
   SessionCreatedPayload,
   SessionStateChangedPayload,
+  SessionStartedPayload,
   SessionUpdatedPayload,
   UcpEvent,
-} from "../types.js";
+} from "../types";
 
 export interface SessionState {
   connectionStatus: ConnectionStatus;
@@ -25,12 +27,14 @@ export interface SessionState {
   pendingQuestions: Record<string, NormalizedQuestion>;
   /** Last acknowledged event sequence for reconnect replay. */
   lastSyncSequence: number;
+  commandOutcomes: Record<string, CommandOutcomePayload & { ok: boolean }>;
 
   // --- actions ---
   applyEvent(event: UcpEvent): void;
   setConnectionStatus(status: ConnectionStatus): void;
   markStale(): void;
   reset(): void;
+  clearCommandOutcome(commandId: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +62,33 @@ function handleSessionCreated(
       version: p.version,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
+    },
+  };
+}
+
+function handleSessionStarted(
+  sessions: Record<string, NormalizedSession>,
+  p: SessionStartedPayload,
+): Record<string, NormalizedSession> {
+  const existing = sessions[p.id];
+  const now = p.updatedAt ?? new Date().toISOString();
+  const version = p.version ?? ((existing?.version ?? 0) + 1);
+  if (existing !== undefined && existing.version >= version) return sessions;
+
+  return {
+    ...sessions,
+    [p.id]: {
+      id: p.id,
+      title: p.title ?? existing?.title ?? "Agent session",
+      state: p.state ?? "running",
+      summary: p.summary ?? existing?.summary ?? "",
+      currentAction: p.currentAction ?? existing?.currentAction ?? null,
+      pendingApprovalCount: existing?.pendingApprovalCount ?? 0,
+      pendingQuestionCount: existing?.pendingQuestionCount ?? 0,
+      capabilities: p.capabilities ?? existing?.capabilities ?? {},
+      version,
+      createdAt: p.createdAt ?? existing?.createdAt ?? now,
+      updatedAt: now,
     },
   };
 }
@@ -207,6 +238,7 @@ const initialState = {
   pendingApprovals: {} as Record<string, NormalizedApproval>,
   pendingQuestions: {} as Record<string, NormalizedQuestion>,
   lastSyncSequence: 0,
+  commandOutcomes: {} as Record<string, CommandOutcomePayload & { ok: boolean }>,
 };
 
 export const useSessionStore = create<SessionState>()((set) => ({
@@ -215,6 +247,14 @@ export const useSessionStore = create<SessionState>()((set) => ({
   applyEvent(event: UcpEvent) {
     set((state) => {
       switch (event.type) {
+        case "session.started":
+          return {
+            sessions: handleSessionStarted(
+              state.sessions,
+              event.payload as SessionStartedPayload,
+            ),
+          };
+
         case "session.created":
           return { sessions: handleSessionCreated(state.sessions, event.payload as SessionCreatedPayload) };
 
@@ -267,6 +307,26 @@ export const useSessionStore = create<SessionState>()((set) => ({
             ),
           };
 
+        case "command.ack": {
+          const outcome = event.payload as CommandOutcomePayload;
+          return {
+            commandOutcomes: {
+              ...state.commandOutcomes,
+              [outcome.commandId]: { ...outcome, ok: true },
+            },
+          };
+        }
+
+        case "command.nack": {
+          const outcome = event.payload as CommandOutcomePayload;
+          return {
+            commandOutcomes: {
+              ...state.commandOutcomes,
+              [outcome.commandId]: { ...outcome, ok: false },
+            },
+          };
+        }
+
         case "host.snapshot": {
           const snap = event.payload as HostSnapshotPayload;
           let sessions = {} as Record<string, NormalizedSession>;
@@ -306,5 +366,13 @@ export const useSessionStore = create<SessionState>()((set) => ({
 
   reset() {
     set(initialState);
+  },
+
+  clearCommandOutcome(commandId: string) {
+    set((state) => {
+      const commandOutcomes = { ...state.commandOutcomes };
+      delete commandOutcomes[commandId];
+      return { commandOutcomes };
+    });
   },
 }));

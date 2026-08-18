@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Agent Deck Host
+Comment=Start Agent Deck and connect local coding agents
+Exec=sh -c 'cd %k/../../.. && pnpm start:agent-deck'
+Terminal=true
+Categories=Development;

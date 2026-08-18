@@ -17,9 +17,19 @@ Minimal controls must be easy to perceive and operate for users with visual, mot
 
 ## 3. Screen reader behavior
 
-### Session tile
+### Agent key
 
-Announce runtime, project, state, current action, pending attention count, and freshness.
+Announce the session title, state, pending attention count, selected state, and freshness. Expanded details announce runtime and project metadata when available.
+
+The selected state is announced independently of color. Every key has at least a 48x48 dp target, and the adaptive grid remains operable at maximum text scale.
+
+### Desktop focus
+
+Selecting an agent always reveals mobile detail. Announce desktop-focus success or failure once through a polite live region. Focus failure must not move accessibility focus away from the selected mobile details, and retry must be a labeled control when the capability is available.
+
+### Command configuration
+
+Command toggles expose checkbox state and readable labels. Horizontal command scrolling must also be operable with screen readers and external keyboards; no command may require a swipe-only gesture.
 
 ### Approval
 

@@ -44,6 +44,7 @@ import {
   approveApproval,
   sendInstruction,
   cancelSession,
+  focusSession,
 } from "../services/command-sender.js";
 
 beforeEach(() => {
@@ -138,5 +139,17 @@ describe("cancelSession", () => {
 
   it("throws when not connected", () => {
     expect(() => cancelSession("ses_1")).toThrow("not connected");
+  });
+});
+
+describe("focusSession", () => {
+  it("sends session.focus with a trackable command ID", () => {
+    connectAndOpen();
+    const commandId = focusSession("ses_1");
+    const envelopes = getCommandEnvelopes();
+    expect(envelopes).toHaveLength(1);
+    expect(envelopes[0]!.type).toBe("session.focus");
+    expect(envelopes[0]!.payload.sessionId).toBe("ses_1");
+    expect(envelopes[0]!.payload.commandId).toBe(commandId);
   });
 });

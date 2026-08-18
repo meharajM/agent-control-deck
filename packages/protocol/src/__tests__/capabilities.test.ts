@@ -16,6 +16,14 @@ describe("UcpCapabilitiesSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts the optional desktop focus capability", () => {
+    const result = UcpCapabilitiesSchema.safeParse({
+      ...validCapabilities,
+      desktopFocus: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects missing send", () => {
     const { send: _s, ...rest } = validCapabilities;
     const result = UcpCapabilitiesSchema.safeParse(rest);

@@ -6,8 +6,8 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSessionStore } from "../../store/session-store.js";
-import type { NormalizedSession } from "../../types.js";
+import { useSessionStore } from "../../store/session-store";
+import type { NormalizedSession } from "../../types";
 
 /** Map internal session state to a human-readable label (per product spec §7). */
 function stateLabel(state: NormalizedSession["state"]): string {

@@ -154,7 +154,9 @@ describe('UcpGateway secure mode', () => {
     gateway?.stop();
   });
 
-  async function createGateway() {
+  async function createGateway(
+    eventRows: Array<{ sequence: number; type: string; payload_json: string; session_id: string | null }> = [],
+  ) {
     const hostKeys = await generateIdentityKeyPair();
     const pairedDevices = new Map<string, { deviceId: string; devicePublicKey: string; deviceName: string }>();
     const revokedKeys = new Set<string>();
@@ -175,7 +177,7 @@ describe('UcpGateway secure mode', () => {
       resolveAdapter: () => undefined,
       snapshots: {} as any,
       journal: {} as any,
-      db: createFakeDb() as any,
+      db: createFakeDbWithEvents(eventRows) as any,
       validateDevice: (devicePublicKey) => pairedDevices.get(devicePublicKey) ?? null,
       completePairing: (devicePublicKey, deviceName, pairingNonce) => {
         if (!pairingNonces.delete(pairingNonce)) {
@@ -225,6 +227,72 @@ describe('UcpGateway secure mode', () => {
     expect(pairedDevices.get(deviceKeys.publicKeyBase64)?.deviceName).toBe('QA iPhone');
     ws.close();
   });
+
+  it.each(['lastAcknowledgedSequence', 'lastSyncSequence'] as const)(
+    'replays only events after payload.%s during secure reconnect',
+    async (cursorField) => {
+      const { port, hostKeys, pairedDevices } = await createGateway([
+        {
+          sequence: 2,
+          type: 'session.updated',
+          payload_json: JSON.stringify({ summary: 'older event' }),
+          session_id: 'session-1',
+        },
+        {
+          sequence: 5,
+          type: 'session.updated',
+          payload_json: JSON.stringify({ summary: 'newer event' }),
+          session_id: 'session-1',
+        },
+      ]);
+      const deviceKeys = await generateIdentityKeyPair();
+      const session = deriveSessionKey(deviceKeys.privateKeyBase64, hostKeys.publicKeyBase64);
+
+      const initialWs = new WebSocket(`ws://localhost:${port}`);
+      await new Promise<void>((resolve) => initialWs.once('open', resolve));
+      initialWs.send(JSON.stringify({
+        type: 'connection.initialize',
+        payload: {
+          devicePublicKey: deviceKeys.publicKeyBase64,
+          deviceName: 'Reconnect Test',
+          pairingNonce: 'pairing-nonce-1',
+        },
+      }));
+      await waitForFrame(initialWs);
+      expect(pairedDevices.has(deviceKeys.publicKeyBase64)).toBe(true);
+      const initialClose = waitForClose(initialWs);
+      initialWs.close();
+      await initialClose;
+
+      const ws = new WebSocket(`ws://localhost:${port}`);
+      await new Promise<void>((resolve) => ws.once('open', resolve));
+      const replayPromise = new Promise<UcpEnvelope>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('timeout waiting for replayed event')), 2000);
+        const handleMessage = (data: WebSocket.RawData) => {
+          const message = decryptFrame(JSON.parse(String(data)) as EncryptedFrame, session.sessionKeyBase64) as unknown as UcpEnvelope;
+          if (message.type === 'session.updated') {
+            clearTimeout(timer);
+            ws.off('message', handleMessage);
+            resolve(message);
+          }
+        };
+        ws.on('message', handleMessage);
+      });
+
+      ws.send(JSON.stringify({
+        type: 'connection.initialize',
+        payload: {
+          devicePublicKey: deviceKeys.publicKeyBase64,
+          [cursorField]: 3,
+        },
+      }));
+
+      const replayed = await replayPromise;
+      expect(replayed.sequence).toBe(5);
+      expect(replayed.payload).toEqual({ summary: 'newer event' });
+      ws.close();
+    },
+  );
 
   it('rejects an unpaired device without a valid pairing nonce', async () => {
     const { port } = await createGateway();

@@ -9,27 +9,22 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.agentdeck.mobile"
+      "bundleIdentifier": "com.agentdeck.mobile",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Agent Deck discovers your computer on the local network.",
+        "NSBonjourServices": ["_agent-deck._tcp"]
+      }
     },
     "android": {
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE", "CHANGE_WIFI_MULTICAST_STATE"],
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
       "package": "com.agentdeck.mobile"
     },
-    "experiments": {
-      "typedRoutes": true
-    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow Agent Deck to use the camera for QR pairing.",
-          "barcodeScannerEnabled": true
-        }
-      ],
       [
         "expo-local-authentication",
         {

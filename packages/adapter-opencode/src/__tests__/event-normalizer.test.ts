@@ -59,6 +59,32 @@ describe('normalizeEvent', () => {
     );
   });
 
+  it('normalizes current session.status payloads', () => {
+    const result = normalizeEvent({
+      type: 'session.status',
+      payload: { sessionID: 'sess-123', status: { type: 'idle' } },
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      type: 'session.idle',
+      sessionId: 'sess-123',
+      payload: { status: 'idle' },
+    }));
+  });
+
+  it('normalizes the installed OpenCode step end event to session.completed', () => {
+    const result = normalizeEvent({
+      type: 'session.next.step.ended',
+      data: { sessionID: 'sess-123', cost: 0, tokens: { input: 1, output: 2 } },
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      type: 'session.completed',
+      sessionId: 'sess-123',
+      payload: { status: 'completed', cost: 0, tokens: { input: 1, output: 2 } },
+    }));
+  });
+
   it('normalizes session.deleted to session.completed', () => {
     const event = {
       type: 'session.deleted',

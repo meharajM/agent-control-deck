@@ -4,8 +4,8 @@
 
 - Fake adapter
 - Bridge core
-- Session board
-- Approval queue
+- Single-screen active-agent control deck
+- Inline attention and approval entry points
 - Replay/snapshot
 
 Status: implemented in-repo.

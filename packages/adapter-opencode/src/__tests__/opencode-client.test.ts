@@ -21,7 +21,7 @@ describe('OpenCodeClient', () => {
 
   describe('healthCheck', () => {
     it('returns true on successful health check', async () => {
-      global.fetch = vi.fn().mockResolvedValue({ ok: true });
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ healthy: true, version: '1.17.18' }) });
       expect(await client.healthCheck()).toBe(true);
     });
 
@@ -40,10 +40,10 @@ describe('OpenCodeClient', () => {
     it('returns version info', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ version: '0.1.0' }),
+        json: () => Promise.resolve({ healthy: true, version: '1.17.18' }),
       });
       const version = await client.getVersion();
-      expect(version).toEqual({ version: '0.1.0' });
+      expect(version).toEqual({ healthy: true, version: '1.17.18' });
     });
 
     it('returns null on error', async () => {
@@ -67,7 +67,7 @@ describe('OpenCodeClient', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({ Authorization: mockServerInfo.authHeader }),
-          body: JSON.stringify({ workingDirectory: '/home/user/project' }),
+          body: JSON.stringify({ location: { directory: '/home/user/project' } }),
         })
       );
       expect(session.id).toBe('sess-123');
@@ -110,7 +110,7 @@ describe('OpenCodeClient', () => {
       await client.sendPrompt('sess-123', 'Write a test');
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:4096/api/session/sess-123/message',
+        'http://127.0.0.1:4096/api/session/sess-123/prompt',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({ Authorization: mockServerInfo.authHeader }),
@@ -127,10 +127,10 @@ describe('OpenCodeClient', () => {
       await client.respondToPermission('sess-123', 'perm-456', 'allow');
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:4096/api/session/sess-123/message',
+        'http://127.0.0.1:4096/api/session/sess-123/permission/perm-456/reply',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"messageID":"perm-456"'),
+          body: JSON.stringify({ reply: 'once' }),
         })
       );
     });
@@ -143,7 +143,7 @@ describe('OpenCodeClient', () => {
       await client.abortSession('sess-123');
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://127.0.0.1:4096/api/session/sess-123/abort',
+        'http://127.0.0.1:4096/api/session/sess-123/interrupt',
         expect.objectContaining({ method: 'POST' })
       );
     });
@@ -158,6 +158,12 @@ describe('OpenCodeClient', () => {
 
       const diff = await client.getDiff('sess-123');
       expect(diff).toBe('diff content');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:4096/api/session/sess-123/diff',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: mockServerInfo.authHeader }),
+        }),
+      );
     });
   });
 

@@ -23,6 +23,8 @@ export interface UcpGatewayConfig {
   commandLedger: CommandLedger;
   resolveAdapter: (sessionId: string) => RuntimeAdapter | undefined;
   registerSession?: (sessionId: string) => void;
+  /** Optional desktop-shell integration. Advertise desktopFocus only when this is reliable. */
+  focusSession?: (sessionId: string) => Promise<void>;
   snapshots: SnapshotService;
   journal: EventJournal;
   db: BetterSqlite3.Database;
@@ -33,6 +35,8 @@ export interface UcpGatewayConfig {
     deviceName: string,
     pairingNonce: string,
   ) => { deviceId: string; devicePublicKey: string; deviceName: string } | null;
+  validatePairingCode?: (code: string, pairingNonce: string) => boolean;
+  resolvePairingCode?: (code: string) => string | null;
   isDeviceRevoked?: (devicePublicKey: string) => boolean;
   allowInsecureLegacyMode?: boolean;
 }
@@ -49,6 +53,8 @@ interface AuthenticatedClient {
 const HANDSHAKE_TIMEOUT_MS = 30_000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 10;
+const PAIRING_CODE_WINDOW_MS = 5 * 60_000;
+const PAIRING_CODE_MAX_ATTEMPTS = 5;
 const MAX_JSON_FRAME_BYTES = 1024 * 1024;
 const MAX_BINARY_FRAME_BYTES = 64 * 1024;
 
@@ -61,6 +67,7 @@ export class UcpGateway {
   private readonly config: UcpGatewayConfig;
   // ponytail: simple IP-based rate limiting with a Map — production would use a token bucket
   private readonly connectionAttempts = new Map<string, number[]>();
+  private readonly pairingCodeAttempts = new Map<string, number[]>();
   port = 0;
   host = '';
 
@@ -155,6 +162,16 @@ export class UcpGateway {
     return false;
   }
 
+  private isPairingCodeRateLimited(code: string): boolean {
+    const now = Date.now();
+    const recent = (this.pairingCodeAttempts.get(code) ?? []).filter(
+      (timestamp) => now - timestamp < PAIRING_CODE_WINDOW_MS,
+    );
+    recent.push(now);
+    this.pairingCodeAttempts.set(code, recent);
+    return recent.length > PAIRING_CODE_MAX_ATTEMPTS;
+  }
+
   private onConnection(ws: WebSocket): void {
     const ip = this.getClientIp(ws);
     if (this.isRateLimited(ip)) {
@@ -222,8 +239,13 @@ export class UcpGateway {
           const payload = (msg as Record<string, unknown>).payload as Record<string, unknown> | undefined;
           const devicePublicKey = payload?.devicePublicKey as string | undefined;
           const deviceName = (payload?.deviceName as string) ?? 'Unknown Device';
-          const pairingNonce = payload?.pairingNonce as string | undefined;
-          const lastSyncSequence = Number(payload?.lastSyncSequence ?? 0);
+          const pairingCode = payload?.pairingCode as string | undefined;
+          const pairingNonce =
+            (payload?.pairingNonce as string | undefined) ??
+            (pairingCode ? this.config.resolvePairingCode?.(pairingCode) ?? undefined : undefined);
+          const lastSyncSequence = Number(
+            payload?.lastAcknowledgedSequence ?? payload?.lastSyncSequence ?? 0,
+          );
 
           if (!devicePublicKey || !this.config.validateDevice || !this.config.hostPrivateKey || !this.config.hostPublicKey) {
             ws.close(4002, 'Missing devicePublicKey');
@@ -238,7 +260,15 @@ export class UcpGateway {
           }
 
           let grant = this.config.validateDevice(devicePublicKey);
-          if (!grant && pairingNonce && this.config.completePairing) {
+          const pairingCodeAccepted =
+            !this.config.validatePairingCode ||
+            Boolean(
+              pairingCode &&
+                !this.isPairingCodeRateLimited(pairingCode) &&
+                pairingNonce &&
+                this.config.validatePairingCode(pairingCode, pairingNonce),
+            );
+          if (!grant && pairingNonce && pairingCodeAccepted && this.config.completePairing) {
             try {
               grant = this.config.completePairing(devicePublicKey, deviceName, pairingNonce) ?? null;
             } catch (error) {
@@ -444,16 +474,18 @@ export class UcpGateway {
   }
 
   private buildSnapshotEnvelope(): UcpEnvelope {
+    const completedCutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const sessions = this.config.db
       .prepare(
         `SELECT id, runtime_instance_id, runtime_session_id, title, project_name,
                 state, summary, current_action, pending_approval_count,
                 pending_question_count, version, created_at, updated_at
          FROM sessions
-         WHERE state NOT IN ('completed', 'failed', 'cancelled')
+         WHERE state != 'cancelled'
+           AND (state != 'completed' OR updated_at >= ?)
          ORDER BY updated_at DESC`
       )
-      .all() as Array<{
+      .all(completedCutoff) as Array<{
         id: string;
         runtime_instance_id: string;
         runtime_session_id: string;
@@ -477,7 +509,34 @@ export class UcpGateway {
       currentAction: s.current_action,
       pendingApprovalCount: s.pending_approval_count,
       pendingQuestionCount: s.pending_question_count,
-      capabilities: {},
+      capabilities: {
+        send: true,
+        steerInFlight: false,
+        cancel: true,
+        retry: false,
+        resume: false,
+        fork: false,
+        desktopFocus: this.config.focusSession !== undefined,
+        approvals: {
+          command: false,
+          fileChange: false,
+          network: false,
+          filesystem: false,
+          genericTool: false,
+          approveForSession: false,
+          modifyBeforeApproval: false,
+        },
+        questions: { singleChoice: false, multiSelect: false, freeText: true },
+        previews: {
+          diff: false,
+          tests: false,
+          commands: false,
+          files: false,
+          rawTranscript: false,
+        },
+        skills: false,
+        macros: false,
+      },
       version: s.version,
       createdAt: s.created_at,
       updatedAt: s.updated_at,
@@ -563,7 +622,7 @@ export class UcpGateway {
     if (!parsed.success) return;
 
     const envelope = parsed.data;
-    if (!envelope.type.startsWith('command/')) return;
+    if (!envelope.type.startsWith('command/') && envelope.type !== 'session.focus') return;
 
     const payload = envelope.payload as Record<string, unknown>;
     const idempotencyKey = payload.idempotencyKey as string | undefined;
@@ -578,7 +637,7 @@ export class UcpGateway {
     }
     if (!adapter) return;
 
-    const commandId = randomUUID();
+    const commandId = typeof payload.commandId === 'string' ? payload.commandId : randomUUID();
     const result = this.config.commandLedger.accept({
       id: commandId,
       idempotencyKey,
@@ -614,7 +673,7 @@ export class UcpGateway {
     }
 
     const envelope = parsed.data;
-    if (!envelope.type.startsWith('command/')) return;
+    if (!envelope.type.startsWith('command/') && envelope.type !== 'session.focus') return;
 
     const payload = envelope.payload as Record<string, unknown>;
     const idempotencyKey = payload.idempotencyKey as string | undefined;
@@ -631,7 +690,7 @@ export class UcpGateway {
     }
     if (!adapter) return;
 
-    const commandId = randomUUID();
+    const commandId = typeof payload.commandId === 'string' ? payload.commandId : randomUUID();
     let result: 'accepted' | 'duplicate';
     try {
       result = this.config.commandLedger.accept({
@@ -702,6 +761,14 @@ export class UcpGateway {
           await adapter.cancelSession(activeSessionId, idempotencyKey);
           break;
         }
+        case 'session.focus': {
+          const activeSessionId = this.requireSessionId(sessionId, type);
+          if (!this.config.focusSession) {
+            throw new Error('CAPABILITY_UNAVAILABLE: desktop focus is not configured');
+          }
+          await this.config.focusSession(activeSessionId);
+          break;
+        }
         case 'command/answer': {
           const activeSessionId = this.requireSessionId(sessionId, type);
           const questionId = String(payload.questionId ?? '');
@@ -759,6 +826,14 @@ export class UcpGateway {
         case 'command/cancel': {
           const activeSessionId = this.requireSessionId(sessionId, type);
           await adapter.cancelSession(activeSessionId, idempotencyKey);
+          break;
+        }
+        case 'session.focus': {
+          const activeSessionId = this.requireSessionId(sessionId, type);
+          if (!this.config.focusSession) {
+            throw new Error('CAPABILITY_UNAVAILABLE: desktop focus is not configured');
+          }
+          await this.config.focusSession(activeSessionId);
           break;
         }
         case 'command/answer': {

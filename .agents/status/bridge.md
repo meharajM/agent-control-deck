@@ -1,44 +1,49 @@
 # Bridge Agent Status
 
-Updated: 2026-07-19
+Updated: 2026-07-22
 
 ## Completed
 
 - BRG-001 bridge-database (`packages/bridge-database/`)
   - Database class with WAL/FK/synchronous/busy_timeout pragmas
-  - runMigrations: reads numbered SQL files, applies in transaction, tracks in bridge_metadata
-  - Tests: table presence, idempotency, applied-migration tracking
+  - Numbered migrations with applied-migration tracking
 
 - BRG-002 event-journal (`packages/bridge-core/src/event-journal.ts`)
-  - append, getAfter, getLatestSequence
-  - INSERT OR IGNORE on event_id for safe replay idempotency
+  - Replay-safe append/getAfter/getLatestSequence behavior
 
 - BRG-003 command-ledger (`packages/bridge-core/src/command-ledger.ts`)
-  - accept (INSERT OR IGNORE on idempotency_key) → 'accepted' | 'duplicate'
-  - markDispatched, markComplete, markFailed
+  - Idempotent accept/dispatched/complete/failed command flow
 
 - BRG-004 approval-CAS (`packages/bridge-core/src/approval-service.ts`)
-  - create, resolve (compare-and-set on version), get, getPending
-  - Concurrent resolve: DB-level CAS with changes-count guard
+  - First-writer-wins compare-and-set approval resolution
 
 - BRG-005 snapshot (`packages/bridge-core/src/snapshot-service.ts`)
-  - getSessionSnapshot: session row + pending approvals + pending questions
+  - Session snapshot generation with pending approvals/questions
 
 - BRG-006 fake-adapter (`packages/adapter-fake/`)
-  - FakeAdapter: EventEmitter-based, scripted scenarios with delays
-  - Default scenario: session.started → approval.requested → session.completed
-  - All RuntimeAdapter methods implemented (in-memory, no real runtime)
+  - Scripted runtime scenarios plus fault-injection support for QA
 
 - ADP-001 adapter-contract (`packages/adapter-contract/`)
   - RuntimeAdapter interface, AdapterEvent, ProbeResult, StartSessionParams, ReconcileResult
 
+- BRG-007 bridge app and UCP gateway (`apps/bridge/`)
+  - Bridge application and gateway are now present in-repo
+  - Runtime-facing and phone-facing bridge layers exist for current integration work
+  - Bridge code participates in the current green workspace baseline
+
+- BRG-RUNTIME-001 Task 2 launch path
+  - Root scripts select `fake`, `codex`, or `opencode` through `BRIDGE_RUNTIME`
+  - README and readiness documentation describe each launch command
+
 ## In progress
 
-- BRG-007 UCP WebSocket gateway — deferred, requires `ws` dependency and monorepo install to build/test. Skeleton not started to avoid uncommitted dead code.
+- Default startup wiring for persisted host identity, durable pairing state, and authenticated encrypted transport
+- Installer, start-on-login, and `doctor` validation for release readiness
 
 ## Blocked
 
-- None currently. `pnpm install` not run per task constraints; tests pending install.
+- None at code level
+- Release validation still depends on packaging evidence and physical-platform verification
 
 ## Paths owned
 
@@ -46,28 +51,19 @@ Updated: 2026-07-19
 - `packages/bridge-core/**`
 - `packages/adapter-contract/**`
 - `packages/adapter-fake/**`
+- `apps/bridge/**`
 
 ## Tests
 
-All test files created alongside implementation. Run with:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm --filter @agent-deck/bridge-database test
-pnpm --filter @agent-deck/bridge-core test
-pnpm --filter @agent-deck/adapter-fake test
-```
-
-Tests not run: `pnpm install` was not executed per task constraints.
+- Bridge-layer tests, QA convergence and restart coverage, and the overall workspace baseline are currently green.
+- Remaining missing evidence is release-oriented, not basic unit or integration coverage.
 
 ## Known limitations / follow-up
 
-- bridge-core tests import `@agent-deck/bridge-database` via workspace — needs install for resolution.
-- adapter-fake tests import `@agent-deck/adapter-contract` via workspace — same.
-- EventJournal.append uses random UUID per call; callers wanting deterministic replay should pass their own event_id (future API extension).
-- SnapshotService reads live tables — no cached serialised snapshots yet (per DATA_MODEL.md §7 note: optional after profiling).
-- BRG-007 (UCP WebSocket gateway) not started — `ws` package not in any package.json yet; coordinate with protocol agent before implementing gateway framing.
+- Authenticated encrypted transport is implemented but not yet the fully locked default startup path.
+- Durable persistence for pairing nonces and device grants remains follow-up work.
+- Installer packaging, bundled Node validation, and operator-facing `doctor` coverage remain open.
 
 ## Suggested reviewer
 
-Protocol/schema agent (for event shape alignment) + QA agent (for conformance suite readiness).
+Protocol/schema agent for wire-shape alignment, security agent for startup and auth wiring, QA agent for release-gate evidence.

@@ -6,7 +6,7 @@ describe('binary-discovery', () => {
     const originalEnv = process.env.PATH;
     process.env.PATH = '/nonexistent/path';
     
-    const result = await probeCodex();
+    const result = await probeCodex(['/nonexistent/codex']);
     expect(result.available).toBe(false);
     expect(result.error).toContain('not found');
     

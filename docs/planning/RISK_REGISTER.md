@@ -19,5 +19,5 @@
 | R15 | Self-signed WSS/pinning blocks mobile implementation | Mitigated | High | Application-encrypted local WS; WSS only for trusted/public endpoints |
 | R16 | Node single-executable/native-addon packaging fails | Mitigated | High | Bundle official Node runtime; target-specific installers |
 | R17 | Detox lags selected React Native release | Mitigated | Medium | Maestro default E2E framework |
-| R18 | mDNS/native discovery module causes build issues | Low | Medium | QR/manual endpoint is mandatory; discovery optional |
+| R18 | mDNS/native discovery module causes build issues | Low | Medium | Keep manual endpoint fallback for development and validate physical Android/iOS builds |
 | R19 | Dedicated speech stack delays release | Medium | Medium | Text and OS dictation in v1; push-to-talk beta |

@@ -11,18 +11,21 @@ export interface CodexBinaryInfo {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export async function probeCodex(): Promise<{ available: boolean; version?: string; error?: string }> {
-  const candidates = [
+export async function probeCodex(
+  candidatePaths?: string[],
+): Promise<{ available: boolean; path?: string; version?: string; error?: string }> {
+  const candidates = candidatePaths ?? [
     'codex',
     join(__dirname, '..', '..', '..', '..', '.local', 'bin', 'codex'),
     '/usr/local/bin/codex',
     '/opt/homebrew/bin/codex',
+    '/Applications/ChatGPT.app/Contents/Resources/codex',
   ];
 
   for (const bin of candidates) {
     try {
       const version = await getCodexVersion(bin);
-      if (version) return { available: true, version };
+      if (version) return { available: true, path: bin, version };
     } catch {}
   }
   return { available: false, error: 'Codex binary not found in PATH or known locations' };

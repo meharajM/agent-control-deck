@@ -211,6 +211,23 @@ describe("markStale", () => {
   });
 });
 
+describe("command outcomes", () => {
+  it("tracks focus acknowledgement and failure for visible feedback", () => {
+    getStore().applyEvent({
+      type: "command.nack",
+      payload: { commandId: "cmd_focus", error: "CAPABILITY_UNAVAILABLE" },
+    });
+    expect(getStore().commandOutcomes.cmd_focus).toEqual({
+      commandId: "cmd_focus",
+      error: "CAPABILITY_UNAVAILABLE",
+      ok: false,
+    });
+
+    getStore().clearCommandOutcome("cmd_focus");
+    expect(getStore().commandOutcomes.cmd_focus).toBeUndefined();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // host.snapshot
 // ---------------------------------------------------------------------------

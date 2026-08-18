@@ -105,7 +105,7 @@ Use reviewed libraries and publish test vectors. Do not design new cryptographic
 
 ## 7. Pairing
 
-### QR contents
+### Pairing code contents
 
 - Protocol version
 - Host ID
@@ -226,15 +226,17 @@ Discovery/private-route retry triggers a full authenticated reconnect and state 
 
 - Loopback development
 - Manual LAN IP
-- QR pairing
+- One-time pairing-code entry
 - Direct application-encrypted WebSocket
 
 ### Stage 2
 
-- Optional mDNS discovery after QR/manual connection is stable
+- Bonjour/mDNS discovery for `_agent-deck._tcp` on Android and iOS
 - Interface selection
 - Tailscale endpoint support
 - Route selection UI
+
+The mobile app uses a four-digit, one-time code to authorize the discovered host. The code is not used as the transport key; the existing device-key handshake and authenticated UCP session remain authoritative. Android emulators may require the manual development endpoint because multicast discovery is not reliable in emulator networking.
 
 ### Stage 3
 

@@ -79,6 +79,7 @@ export const UcpCapabilitiesSchema = z
     retry: z.boolean(),
     resume: z.boolean(),
     fork: z.boolean(),
+    desktopFocus: z.boolean().optional(),
     approvals: UcpApprovalCapabilitiesSchema,
     questions: UcpQuestionCapabilitiesSchema,
     previews: UcpPreviewCapabilitiesSchema,

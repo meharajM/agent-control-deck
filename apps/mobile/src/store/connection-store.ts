@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import type { RouteType, RouteSelection, RouteConfig } from "../services/route-selection.js";
-import { selectRoute } from "../services/route-selection.js";
-import type { RouteDiagnostics } from "../services/route-diagnostics.js";
+import type { RouteType, RouteSelection, RouteConfig } from "../services/route-selection";
+import { selectRoute } from "../services/route-selection";
+import type { RouteDiagnostics } from "../services/route-diagnostics";
 
 export type WsStatus =
   | "idle"
@@ -19,6 +19,7 @@ export interface ConnectionState {
   hostId: string | null;
   hostName: string | null;
   devicePublicKey: string | null;
+  errorMessage: string | null;
   reconnectAttempts: number;
 
   // --- route state ---
@@ -35,7 +36,7 @@ export interface ConnectionState {
   disconnect(): void;
   onConnected(hostId: string): void;
   onDisconnected(): void;
-  onError(): void;
+  onError(message?: string): void;
   incrementReconnectAttempts(): void;
   resetReconnectAttempts(): void;
   setPairingStatus(status: PairingStatus): void;
@@ -59,6 +60,7 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   hostId: null,
   hostName: null,
   devicePublicKey: null,
+  errorMessage: null,
   reconnectAttempts: 0,
 
   routeType: "direct",
@@ -70,13 +72,18 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
   diagnostics: null,
 
   connect(url: string) {
-    set({ status: "connecting", bridgeUrl: url, hostId: null });
+    set({ status: "connecting", bridgeUrl: url, hostId: null, errorMessage: null });
   },
 
   disconnect() {
     set({
       status: "idle",
+      pairingStatus: "not_paired",
+      bridgeUrl: null,
       hostId: null,
+      hostName: null,
+      devicePublicKey: null,
+      errorMessage: null,
       reconnectAttempts: 0,
       diagnostics: null,
       directFailures: 0,
@@ -95,8 +102,8 @@ export const useConnectionStore = create<ConnectionState>()((set, get) => ({
     });
   },
 
-  onError() {
-    set({ status: "failed" });
+  onError(message?: string) {
+    set({ status: "failed", errorMessage: message ?? "Could not connect to the bridge." });
   },
 
   incrementReconnectAttempts() {

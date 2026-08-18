@@ -20,7 +20,7 @@ There are unavoidable external prerequisites—particularly macOS/Xcode for iOS 
 - `expo-sqlite` for non-secret cache
 - `expo-secure-store` for small device credentials
 - `expo-local-authentication` for biometric gates
-- `expo-camera` for QR pairing
+- `react-native-zeroconf` for Bonjour/mDNS host discovery
 - Native `WebSocket` for foreground communication
 - Maestro for mobile E2E testing
 - React Native Testing Library for component tests
@@ -83,7 +83,7 @@ mDNS packages may lag React Native New Architecture support and require iOS Bonj
 
 #### Final decision
 
-- QR pairing with endpoint data is mandatory.
+- Four-digit pairing with Bonjour/mDNS host discovery is the primary path; manual endpoint entry remains a development fallback.
 - Manual endpoint entry is the fallback.
 - Previously successful endpoints are cached.
 - mDNS is optional after the first usable release.

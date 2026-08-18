@@ -211,6 +211,7 @@ describe('Real integration: BridgeApp end-to-end', () => {
     const { ws: ws2, snapshot } = await connectAndInit(app);
     const snapPayload = snapshot.payload as Record<string, unknown>;
     const approvals = snapPayload.approvals as Array<Record<string, unknown>>;
+    const sessions = snapPayload.sessions as Array<Record<string, unknown>>;
 
     // The approval was created during the session, so it should appear in the DB
     // even though the session is completed (approvals table is not filtered by session state)
@@ -218,6 +219,9 @@ describe('Real integration: BridgeApp end-to-end', () => {
     expect(approvals.some((a) =>
       a.id === approvalId || a.runtimeApprovalId === approvalId,
     )).toBe(true);
+    const retainedSession = sessions.find((session) => session.id === runtimeSessionId);
+    expect(retainedSession?.state).toBe('completed');
+    expect((retainedSession?.capabilities as Record<string, unknown>)?.desktopFocus).toBe(false);
 
     ws2.close();
   }, 10000);
@@ -260,6 +264,38 @@ describe('Real integration: BridgeApp end-to-end', () => {
     const ack2Payload = ack2.payload as Record<string, unknown>;
     expect(ack2Payload.status).toBe('duplicate');
 
+    ws.close();
+  });
+
+  it('acknowledges desktop focus only after the configured host integration succeeds', async () => {
+    const focusedSessions: string[] = [];
+    app.stop();
+    app = new BridgeApp({
+      port: 0,
+      dbPath: ':memory:',
+      allowInsecureLegacyMode: true,
+      focusSession: async (sessionId) => {
+        focusedSessions.push(sessionId);
+      },
+    });
+    await app.start();
+    const { ws } = await connectAndInit(app);
+    const adapter = app.getAdapterManager()!.getAdapter('fake')!;
+    const runtimeSessionId = await adapter.startSession({});
+    await waitForMessage(ws, 'session.started');
+
+    const corrId = randomUUID();
+    const ackPromise = waitForMessage(ws, 'command.ack');
+    const commandId = randomUUID();
+    sendEnvelope(ws, buildCommand('session.focus', {
+      commandId,
+      idempotencyKey: randomUUID(),
+    }, runtimeSessionId, corrId));
+
+    const ack = await ackPromise;
+    expect(ack.correlationId).toBe(corrId);
+    expect((ack.payload as Record<string, unknown>).commandId).toBe(commandId);
+    expect(focusedSessions).toEqual([runtimeSessionId]);
     ws.close();
   });
 

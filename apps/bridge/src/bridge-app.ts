@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { networkInterfaces } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RuntimeAdapter } from '@agent-deck/adapter-contract';
@@ -21,6 +22,8 @@ export interface BridgeAppConfig {
   allowInsecureLegacyMode?: boolean;
   runtime?: BridgeRuntimeSelection;
   createAdapter?: (runtime: BridgeRuntimeSelection) => RuntimeAdapter | Promise<RuntimeAdapter>;
+  /** Exact-session desktop integration. Omit unless focus can be confirmed reliably. */
+  focusSession?: (sessionId: string) => Promise<void>;
 }
 
 interface PersistedHostIdentity extends IdentityKeyPair {
@@ -86,6 +89,7 @@ export class BridgeApp {
           ? this.adapterManager?.getAdapterForSession(sessionId)
           : this.adapterManager?.getSelectedAdapter(),
       registerSession: (sessionId) => this.adapterManager?.recordSessionStart(sessionId),
+      ...(this.config.focusSession ? { focusSession: this.config.focusSession } : {}),
       snapshots: this.snapshots!,
       journal: this.journal!,
       db: this.db.db,
@@ -97,6 +101,9 @@ export class BridgeApp {
               this.pairing?.validateDevice(devicePublicKey) ?? null,
             completePairing: (devicePublicKey: string, deviceName: string, pairingNonce: string) =>
               this.pairing?.completePairing(devicePublicKey, deviceName, pairingNonce) ?? null,
+            validatePairingCode: (code: string, pairingNonce: string) =>
+              this.pairing?.validatePairingCode(code, pairingNonce) ?? false,
+            resolvePairingCode: (code: string) => this.pairing?.resolvePairingCode(code) ?? null,
             isDeviceRevoked: (devicePublicKey: string) =>
               this.pairing?.isRevoked(devicePublicKey) ?? false,
           }
@@ -118,7 +125,13 @@ export class BridgeApp {
 
   private resolveBindHost(): string {
     const iface = this.config.interface ?? process.env.BRIDGE_INTERFACE;
-    if (!iface) return '0.0.0.0';
+    if (this.config.port === 0 && !iface) return '127.0.0.1';
+    if (!iface) {
+      const localAddress = Object.values(networkInterfaces())
+        .flatMap((entries) => entries ?? [])
+        .find((entry) => entry.family === 'IPv4' && !entry.internal && isPrivateIpv4(entry.address))?.address;
+      return localAddress ?? '127.0.0.1';
+    }
 
     // If it looks like an IP address, use it directly
     if (/^\d+\.\d+\.\d+\.\d+$/.test(iface) || iface === '::1' || iface === 'localhost') {
@@ -166,6 +179,10 @@ export class BridgeApp {
       this.hostIdentity.publicKeyBase64,
       endpoints,
     );
+  }
+
+  createPairingCode(endpoints: string[], hostName = 'Agent Deck Bridge'): BridgeQrPayload {
+    return this.createPairingQrPayload(endpoints, hostName);
   }
 
   revokeDevice(devicePublicKey: string): boolean {
@@ -230,4 +247,12 @@ export class BridgeApp {
       }
     }
   }
+}
+
+function isPrivateIpv4(address: string): boolean {
+  const octets = address.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  const first = octets[0]!;
+  const second = octets[1]!;
+  return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
 }

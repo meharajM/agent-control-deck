@@ -1,4 +1,11 @@
 import * as ed from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha512';
+
+// React Native does not provide WebCrypto's SubtleCrypto implementation.
+// Configure noble's synchronous hashing path so identity operations remain
+// portable without weakening the Ed25519 implementation or requiring a
+// platform-specific crypto shim.
+ed.etc.sha512Sync = (...messages) => sha512(ed.etc.concatBytes(...messages));
 
 export interface IdentityKeyPair {
   publicKeyBase64: string;
@@ -11,7 +18,7 @@ export interface IdentityKeyPair {
  */
 export async function generateIdentityKeyPair(): Promise<IdentityKeyPair> {
   const privateKey = ed.utils.randomPrivateKey();
-  const publicKey = await ed.getPublicKeyAsync(privateKey);
+  const publicKey = ed.getPublicKey(privateKey);
 
   return {
     publicKeyBase64: uint8ToBase64(publicKey),
@@ -27,7 +34,7 @@ export async function sign(
   privateKeyBase64: string,
 ): Promise<Uint8Array> {
   const privateKey = base64ToUint8(privateKeyBase64);
-  return ed.signAsync(message, privateKey);
+  return ed.sign(message, privateKey);
 }
 
 /**
@@ -39,7 +46,7 @@ export async function verify(
   publicKeyBase64: string,
 ): Promise<boolean> {
   const publicKey = base64ToUint8(publicKeyBase64);
-  return ed.verifyAsync(signature, message, publicKey);
+  return ed.verify(signature, message, publicKey);
 }
 
 function uint8ToBase64(bytes: Uint8Array): string {

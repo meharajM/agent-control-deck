@@ -127,7 +127,7 @@ Pass condition: normalized state converges to runtime truth and no state-changin
 ## 8. Security tests
 
 - Pairing nonce replay
-- Expired QR
+- Expired four-digit pairing code
 - Invalid host fingerprint
 - Revoked device reconnect
 - Active revoked device disconnect

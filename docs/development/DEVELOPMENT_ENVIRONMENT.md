@@ -47,7 +47,7 @@ Commands:
 ```bash
 pnpm install
 pnpm --filter @agent-deck/mobile expo prebuild --clean
-pnpm --filter @agent-deck/mobile expo run:ios
+DEVELOPER_DIR=/Applications/Xcode-26.6.0.app/Contents/Developer pnpm --filter @agent-deck/mobile ios --device "AgentDeck iPhone 16 (iOS 26.5)"
 pnpm --filter @agent-deck/mobile android
 ```
 
@@ -65,17 +65,17 @@ The wrapper:
 - reuses an already-booted emulator for the target AVD when one exists;
 - otherwise starts `ContextEngine_Test_Device`, waits for that specific emulator serial to appear, waits for `sys.boot_completed=1`, then runs `expo run:android --device <avd-name> --no-bundler`;
 - unsets an invalid inherited `LC_ALL` value so the wrapper does not emit a host-locale warning before the Android build starts.
+- lets Expo start Metro as part of the same command, so the installed debug build can immediately load its JavaScript bundle instead of landing on the red-screen "Unable to load script" error when no bundler is already running.
 
-A native rebuild is needed after adding or changing native modules/config plugins, but ordinary TypeScript changes use the normal Metro fast-refresh workflow.
+A native rebuild is needed after adding or changing native modules/config plugins, but ordinary TypeScript changes use the normal Metro fast-refresh workflow. The iOS wrapper sets a UTF-8 locale for CocoaPods and checks for Swift tools 6.2 before starting Expo. Xcode 26.0 or newer on macOS 15.6+ is required by the current Expo SDK 56 dependency graph. If Xcode is not system-selected, set `DEVELOPER_DIR` to its `Contents/Developer` path and accept its license once.
 
-Verified local host results on July 22, 2026:
+Verified local host results on August 18, 2026:
 
 - Android local builds advanced only after replacing Java 11 with JDK 17.
 - The repository wrapper now provides a stable Android install/test path on this host: it booted or reused `ContextEngine_Test_Device`, built the app, installed the debug APK, and opened the Expo development client.
-- Direct `expo run:android` remains less reliable when Expo must start the emulator itself.
-- The current iOS validation blocker on this host is Swift tools compatibility: Xcode 16.4 provides Swift `6.1.2`, but `expo-modules-jsi@56.0.12` declares `// swift-tools-version: 6.2` in `apple/Package.swift`.
-- Disabling Expo precompiled modules does not remove this blocker for the current dependency graph. The iOS build still runs the CocoaPods phase `[CP-User] Build ExpoModulesJSI xcframework`, which resolves the same Swift package and fails before app compilation begins.
-- On July 22, 2026, Apple documents Swift `6.2` support in Xcode 26.x. Treat Xcode 26.0 or newer as the minimum local iOS toolchain for this repo until Expo or the dependency graph changes.
+- Direct `expo run:android` remains less reliable when Expo must start the emulator itself, which is why the wrapper boots the emulator first and then hands off bundle startup to Expo.
+- The iOS simulator build/install is verified on Xcode 26.6 with Swift `6.3.3` and the iOS 26.5 runtime. The first build compiled ExpoModulesJSI successfully, installed `com.agentdeck.mobile`, launched it, and loaded the Metro bundle.
+- If multiple simulator runtimes are installed, target `AgentDeck iPhone 16 (iOS 26.5)` so Expo does not select the older iOS 18.6 `iPhone 16` device.
 
 ## 4. Bridge workflow
 

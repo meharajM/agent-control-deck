@@ -1,26 +1,21 @@
 # QA Agent Status
 
-Updated: 2026-07-19
+Updated: 2026-07-21
 
 ## Completed
 
-- QA-001: Fake scenario engine with 3 deterministic scenarios:
-  - `happy-path`: session.created → approval.requested (medium risk, command) → approval.resolved (approve) → session.completed
-  - `reconnect`: session.created → approval.requested → DISCONNECT sentinel → RECONNECT sentinel → approval.resolved → session.completed
-  - `duplicate-command`: session.created → COMMAND_SEND (accepted) → COMMAND_SEND (same idempotencyKey, expected: duplicate)
-- Scenario type definitions (`scenario-types.ts`)
-- Vitest test suite covering step counts, ordering, sentinel positions, ID uniqueness
+- Chaos, convergence, concurrency, restart, and performance scenario coverage has been added in `packages/qa-scenarios`
+- Fake-adapter fault-injection hooks and replay and convergence helpers are present in-repo
+- The workspace `pnpm test` and `pnpm typecheck` baseline is currently green
 
-## In progress
+## In Progress
 
-- QA-002: Conformance suite — pending adapter-contract merge
+- Release-gate evidence for Maestro flows, physical-device smoke tests, and no-internet local-only validation
+- Verifying that documented open networking and security limitations are reflected accurately in readiness docs
 
 ## Blocked
-
-None
+- None
 
 ## Notes
-
-- DISCONNECT/RECONNECT/COMMAND_SEND are sentinel step types consumed by the bridge integration harness, not emitted to the mobile store directly.
-- Scenario IDs are unique by design; test enforces this.
-- All scenarios have deterministic delayMs values for repeatable replay.
+- Historical handoffs record intermediate package-level failures before later integration work; current repo status is the green workspace baseline.
+- Remaining QA-readiness work is now dominated by release evidence rather than missing harness coverage.

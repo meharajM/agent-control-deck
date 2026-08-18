@@ -1,37 +1,30 @@
 # Mobile Agent Status
 
-Updated: 2026-07-19
+Updated: 2026-07-21
 
 ## Completed
 
-- MOB-001: Expo Router navigation scaffold (`_layout.tsx`, `index.tsx`, sessions list, session detail, approval screen, pairing screen placeholder)
-- MOB-002: Zustand session store with reducer-style normalized event application (`session-store.ts`) and connection store (`connection-store.ts`)
-- MOB-003: WebSocket connection state machine (`ucp-client.ts`) with exponential backoff reconnect (5 attempts, 1s/2s/4s/8s/16s)
-- QA-001: Fake scenario engine with 3 scenarios (see packages/qa-scenarios)
-- Shared UCP types (`src/types.ts`) for mobile-local normalized shapes
-- Component tests for session-store (applyEvent, idempotency, markStale, snapshot)
-- Component tests for UcpClient (connect, disconnect, inbound event dispatch, malformed frame handling)
+- Expo Router mobile shell now includes attention and session flows, approval screens, pairing routes, diagnostics, settings, and session detail screens
+- Zustand session and connection stores implement normalized event application, reconnect and stale handling, pairing state, and route-selection state
+- `ucp-client.ts` implements connection lifecycle plus the current handshake and encrypted-frame integration work
+- Pairing, command-sending, biometric-gating hooks, route selection, and diagnostics services are present in-repo
+- Mobile code participates in the current green workspace baseline
 
 ## In progress
 
-None
+- Physical-device QR and pairing validation evidence
+- Maestro cross-platform approval and reconnect evidence
+- Finishing private-route stubs for network ID detection and latency correlation
 
 ## Blocked
 
-- `pnpm install` must be run before tests can execute (per task constraints, not run by this agent)
-- Approval decision buttons wired to `approval.answer` command — deferred pending bridge command ledger (future task)
-- Full pairing flow (QR camera + crypto handshake) — deferred to security/networking agent task
-- Biometric gate for high-risk approvals — deferred to security agent task
+- iOS and device validation depend on Xcode 26.6+ toolchain availability
+- Release-gate validation is still open even though core mobile flows are implemented
 
 ## Paths
 
 - `apps/mobile/**`
 - `packages/qa-scenarios/**`
-
-## Tests not run
-
-- `pnpm --filter @agent-deck/mobile test` — pnpm install not executed
-- `pnpm --filter @agent-deck/qa-scenarios test` — pnpm install not executed
 
 ## Key decisions
 
@@ -40,4 +33,5 @@ None
 3. Approval cards stay after resolution (terminal state rendered, buttons disabled) per product spec §9.
 4. Decision buttons disabled whenever `connectionStatus !== 'connected'` (invariant #9, #13).
 5. `UcpClient` sends `connection.initialize` on `onopen`, not before — nothing is sent until the socket is open.
-6. DISCONNECT/RECONNECT/COMMAND_SEND are sentinel types in scenario steps, consumed by the harness runner, not emitted to the store.
+6. Route selection prefers remembered-good endpoints, then direct, then private endpoint fallback.
+7. Text-first input remains the v1 path; dedicated push-to-talk is still post-v1 QA scope.

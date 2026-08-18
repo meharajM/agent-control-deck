@@ -68,20 +68,34 @@ describe("connectToBridge", () => {
     expect(MockWebSocketCtor).toHaveBeenCalledWith("ws://localhost:8765");
     expect(useConnectionStore.getState().status).toBe("connecting");
     expect(useConnectionStore.getState().bridgeUrl).toBe("ws://localhost:8765");
+    expect(useConnectionStore.getState().selectedRoute).toMatchObject({
+      routeType: "direct",
+      selectedEndpoint: "ws://localhost:8765",
+    });
   });
 
   it("wires connection.initialized to connection store", () => {
+    useConnectionStore.getState().setSelectedRoute({
+      routeType: "direct",
+      selectedEndpoint: "ws://localhost:8765",
+      reason: "test",
+    });
     connectToBridge("ws://localhost:8765");
     mockWsInstance.simulateOpen();
     mockWsInstance.simulateMessage(
       JSON.stringify({
         type: "connection.initialized",
-        payload: { hostId: "host_abc", selectedVersion: 1 },
+        payload: { hostId: "host_abc", hostName: "Workstation", selectedVersion: 1 },
       })
     );
     expect(useConnectionStore.getState().status).toBe("connected");
     expect(useConnectionStore.getState().hostId).toBe("host_abc");
+    expect(useConnectionStore.getState().hostName).toBe("Workstation");
     expect(useSessionStore.getState().connectionStatus).toBe("connected");
+    expect(useConnectionStore.getState().diagnostics).toMatchObject({
+      reconnectCount: 0,
+      lastReconnectReason: "",
+    });
   });
 
   it("wires inbound events to session store", () => {

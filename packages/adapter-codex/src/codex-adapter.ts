@@ -18,6 +18,7 @@ import type {
 interface SessionMapping {
   bridgeSessionId: string;
   codexThreadId: string;
+  codexTurnId: string | undefined;
   state: 'starting' | 'running' | 'completed' | 'cancelled' | 'failed';
   workingDirectory?: string;
 }
@@ -34,7 +35,7 @@ export class CodexAdapter extends EventEmitter implements RuntimeAdapter {
   async probe(): Promise<ProbeResult> {
     const result = await probeCodex();
     if (result.available && result.version) {
-      this.binaryInfo = { path: 'codex', version: result.version };
+      this.binaryInfo = { path: result.path ?? 'codex', version: result.version };
     }
     return result;
   }
@@ -59,22 +60,34 @@ export class CodexAdapter extends EventEmitter implements RuntimeAdapter {
       clientInfo: { name: 'agent-deck-bridge', version: this.adapterVersion },
     });
 
-    const createResult = await this.client.createThread({
-      workingDirectory,
-      initialInstruction: params.instruction,
-    });
+    const startResult = await this.client.startThread({ cwd: workingDirectory });
 
-    const threadId = (createResult.result as { threadId: string })?.threadId;
+    const threadId = (startResult.result as { thread?: { id?: string }; threadId?: string })?.thread?.id
+      ?? (startResult.result as { threadId?: string })?.threadId;
     if (!threadId) {
-      throw new Error('Failed to create Codex thread: ' + JSON.stringify(createResult));
+      throw new Error('Failed to start Codex thread: ' + JSON.stringify(startResult));
     }
 
-    this.sessions.set(bridgeSessionId, {
+    const mapping: SessionMapping = {
       bridgeSessionId,
       codexThreadId: threadId,
+      codexTurnId: undefined,
       state: 'running',
       workingDirectory,
+    };
+    this.sessions.set(bridgeSessionId, mapping);
+
+    this.emit('session_event', {
+      type: 'session.started',
+      sessionId: bridgeSessionId,
+      payload: { threadId, workingDirectory },
+      timestamp: new Date().toISOString(),
     });
+
+    if (params.instruction) {
+      const turnResult = await this.client.startTurn(threadId, params.instruction, randomUUID());
+      mapping.codexTurnId = getTurnId(turnResult.result);
+    }
 
     return bridgeSessionId;
   }
@@ -88,7 +101,8 @@ export class CodexAdapter extends EventEmitter implements RuntimeAdapter {
     if (!mapping) throw new Error(`Session not found: ${sessionId}`);
     if (!this.client) throw new Error('Client not initialized');
 
-    await this.client.sendTurn(mapping.codexThreadId, text, idempotencyKey);
+    const result = await this.client.startTurn(mapping.codexThreadId, text, idempotencyKey);
+    mapping.codexTurnId = getTurnId(result.result) ?? mapping.codexTurnId;
   }
 
   async cancelSession(sessionId: string, idempotencyKey: string): Promise<void> {
@@ -96,8 +110,8 @@ export class CodexAdapter extends EventEmitter implements RuntimeAdapter {
     if (!mapping) return;
     if (!this.client) return;
 
-    mapping.state = 'cancelled';
-    await this.client.cancelThread(mapping.codexThreadId, idempotencyKey);
+    if (!mapping.codexTurnId) return;
+    await this.client.interruptTurn(mapping.codexThreadId, mapping.codexTurnId);
   }
 
   async resolveApproval(
@@ -133,11 +147,12 @@ export class CodexAdapter extends EventEmitter implements RuntimeAdapter {
     if (!this.client) return { sessionExists: true, state: mapping.state };
 
     try {
-      const result = await this.client.getThread(mapping.codexThreadId);
-      const thread = result.result as { status: string } | undefined;
+      const result = await this.client.readThread(mapping.codexThreadId);
+      const thread = (result.result as { thread?: { status?: { type?: string } | string } })?.thread;
       if (thread) {
-        mapping.state = thread.status as SessionMapping['state'];
-        return { sessionExists: true, state: thread.status };
+        const state = normalizeThreadState(thread.status);
+        if (state) mapping.state = state;
+        return { sessionExists: true, state: mapping.state };
       }
     } catch {
       // Thread may not exist anymore
@@ -166,6 +181,13 @@ export class CodexAdapter extends EventEmitter implements RuntimeAdapter {
 
       const event = normalizeCodexEvent(notification, bridgeSessionId);
       if (event) {
+        const mapping = this.sessions.get(bridgeSessionId);
+        if (mapping) {
+          const params = notification.params as { turn?: { id?: string }; turnId?: string } | undefined;
+          const turnId = params?.turn?.id ?? params?.turnId;
+          if (notification.method === 'turn/started' && turnId) mapping.codexTurnId = turnId;
+          if (notification.method === 'turn/completed') mapping.codexTurnId = undefined;
+        }
         this.updateSessionState(bridgeSessionId, event);
         this.emit('session_event', event);
       }
@@ -209,5 +231,30 @@ export class CodexAdapter extends EventEmitter implements RuntimeAdapter {
         mapping.state = event.type.replace('session.', '') as SessionMapping['state'];
         break;
     }
+  }
+}
+
+function getTurnId(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const turn = (result as { turn?: { id?: unknown } }).turn;
+  return turn && typeof turn.id === 'string' ? turn.id : undefined;
+}
+
+function normalizeThreadState(status: { type?: string } | string | undefined): SessionMapping['state'] | undefined {
+  const type = typeof status === 'string' ? status : status?.type;
+  switch (type) {
+    case 'active':
+      return 'running';
+    case 'idle':
+      return 'completed';
+    case 'systemError':
+      return 'failed';
+    case 'completed':
+      return 'completed';
+    case 'cancelled':
+    case 'interrupted':
+      return 'cancelled';
+    default:
+      return undefined;
   }
 }

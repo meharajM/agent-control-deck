@@ -1,4 +1,4 @@
-import type { RouteType } from "./route-selection.js";
+import type { RouteType } from "./route-selection";
 
 export interface RouteDiagnostics {
   routeType: RouteType;
@@ -26,6 +26,8 @@ export class DiagnosticsTracker {
     this.routeType = routeType;
     this.endpoint = endpoint;
     this.latencySamples = [];
+    this.reconnectCount = 0;
+    this.lastReconnectReason = "";
   }
 
   recordLatency(ms: number): void {

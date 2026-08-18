@@ -145,6 +145,7 @@ Bridge response:
 - `session.retry`
 - `session.archive`
 - `session.request_preview`
+- `session.focus`
 
 ### Human input
 
@@ -244,6 +245,7 @@ interface SessionCapabilities {
   retry: boolean;
   resume: boolean;
   fork: boolean;
+  desktopFocus?: boolean;
   approvals: {
     command: boolean;
     fileChange: boolean;
@@ -270,6 +272,8 @@ interface SessionCapabilities {
   macros: boolean;
 }
 ```
+
+`desktopFocus` is a host-shell capability, not a runtime-name assumption. The bridge advertises it only when it can map a normalized session to an exact desktop target and receive confirmation that the target was focused. `session.focus` is idempotent and returns `command.ack` only after confirmation. Unsupported, missing, closed, or permission-blocked targets return `command.nack`; mobile detail remains available regardless.
 
 ## 13. Approval model
 

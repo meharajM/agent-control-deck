@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { generateNonce } from '@agent-deck/crypto';
 
 export interface DeviceGrantRecord {
@@ -11,6 +11,7 @@ export interface DeviceGrantRecord {
 
 export interface PairingSessionRecord {
   nonce: string;
+  pairingCode: string;
   hostPublicKey: string;
   createdAt: string;
   expiresAt: string;
@@ -25,6 +26,7 @@ export interface BridgeQrPayload {
   nonce: string;
   endpoints: string[];
   expiresAt: string;
+  code: string;
 }
 
 export class BridgePairingStore {
@@ -35,6 +37,7 @@ export class BridgePairingStore {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const session: PairingSessionRecord = {
       nonce: generateNonce(),
+      pairingCode: String(randomInt(1000, 10000)),
       hostPublicKey,
       createdAt,
       expiresAt,
@@ -42,11 +45,28 @@ export class BridgePairingStore {
     };
     this.db
       .prepare(
-        `INSERT INTO pairing_sessions (nonce, host_public_key, created_at, expires_at, used_at)
-         VALUES (?, ?, ?, ?, NULL)`
+        `INSERT INTO pairing_sessions (nonce, pairing_code, host_public_key, created_at, expires_at, used_at)
+         VALUES (?, ?, ?, ?, ?, NULL)`
       )
-      .run(session.nonce, session.hostPublicKey, session.createdAt, session.expiresAt);
+      .run(session.nonce, session.pairingCode, session.hostPublicKey, session.createdAt, session.expiresAt);
     return session;
+  }
+
+  validatePairingCode(code: string, nonce: string): boolean {
+    if (!/^\d{4}$/.test(code)) return false;
+    const row = this.db.prepare(
+      `SELECT pairing_code, expires_at, used_at FROM pairing_sessions WHERE nonce = ?`,
+    ).get(nonce) as { pairing_code: string | null; expires_at: string; used_at: string | null } | undefined;
+    return Boolean(row && row.pairing_code === code && !row.used_at && Date.parse(row.expires_at) >= Date.now());
+  }
+
+  resolvePairingCode(code: string): string | null {
+    if (!/^\d{4}$/.test(code)) return null;
+    const row = this.db.prepare(
+      `SELECT nonce FROM pairing_sessions
+       WHERE pairing_code = ? AND used_at IS NULL AND expires_at >= ?`,
+    ).get(code, new Date().toISOString()) as { nonce: string } | undefined;
+    return row?.nonce ?? null;
   }
 
   completePairing(devicePublicKey: string, deviceName: string, nonce: string): DeviceGrantRecord {
@@ -209,6 +229,7 @@ export class BridgePairingStore {
       nonce: session.nonce,
       endpoints,
       expiresAt: session.expiresAt,
+      code: session.pairingCode,
     };
   }
 

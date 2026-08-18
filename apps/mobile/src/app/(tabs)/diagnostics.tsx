@@ -5,9 +5,9 @@ import {
   Text,
   View,
 } from "react-native";
-import { useConnectionStore } from "../../store/connection-store.js";
-import { useSessionStore } from "../../store/session-store.js";
-import { sendCommand } from "../../services/bridge-connection.js";
+import { useConnectionStore } from "../../store/connection-store";
+import { useSessionStore } from "../../store/session-store";
+import { sendCommand } from "../../services/bridge-connection";
 
 function formatUptime(ms: number): string {
   const seconds = Math.floor(ms / 1000);

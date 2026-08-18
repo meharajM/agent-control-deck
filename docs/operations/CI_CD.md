@@ -68,7 +68,7 @@ Use Maestro as the baseline.
 
 Required flows:
 
-- Pair by QR fixture
+- Pair by four-digit discovery fixture
 - See fake session
 - Receive approval
 - Approve once

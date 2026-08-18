@@ -1,29 +1,16 @@
-import { Tabs } from "expo-router";
+import { Stack } from "expo-router";
 
 export default function TabsLayout() {
   return (
-    <Tabs
+    <Stack
       screenOptions={{
         headerShown: true,
-        tabBarAccessibilityLabel: "Main navigation",
+        headerBackTitle: "Deck",
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{ title: "Attention" }}
-      />
-      <Tabs.Screen
-        name="sessions"
-        options={{ title: "Sessions" }}
-      />
-      <Tabs.Screen
-        name="diagnostics"
-        options={{ title: "Diagnostics" }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{ title: "Settings" }}
-      />
-    </Tabs>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="sessions" options={{ title: "Session history" }} />
+      <Stack.Screen name="diagnostics" options={{ title: "Diagnostics" }} />
+    </Stack>
   );
 }

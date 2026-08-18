@@ -97,6 +97,23 @@ describe("UcpClient.connect", () => {
     expect(msg["protocol"]).toBe("ucp");
   });
 
+  it("includes the latest sync sequence in the handshake payload", () => {
+    const client = new UcpClient("ws://localhost:8765", {
+      onEvent: () => undefined,
+      onConnected: () => undefined,
+      onDisconnected: () => undefined,
+      onError: () => undefined,
+    }, {
+      getLastSyncSequence: () => 42,
+    });
+    client.connect();
+    mockWsInstance.simulateOpen();
+
+    const msg = JSON.parse(mockWsInstance.sentMessages[0]!) as Record<string, unknown>;
+    expect(msg["type"]).toBe("connection.initialize");
+    expect((msg["payload"] as Record<string, unknown>)["lastSyncSequence"]).toBe(42);
+  });
+
   it("does not open a second socket when already connecting", () => {
     const client = new UcpClient("ws://localhost:8765", {
       onEvent: () => undefined,
@@ -142,7 +159,7 @@ describe("UcpClient.disconnect", () => {
 
 describe("UcpClient inbound messages", () => {
   it("calls onConnected when connection.initialized is received", () => {
-    const onConnected = vi.fn<(hostId: string) => void>();
+    const onConnected = vi.fn<(hostId: string, hostName?: string) => void>();
     const client = new UcpClient("ws://localhost:8765", {
       onEvent: () => undefined,
       onConnected,
@@ -154,10 +171,10 @@ describe("UcpClient inbound messages", () => {
     mockWsInstance.simulateMessage(
       JSON.stringify({
         type: "connection.initialized",
-        payload: { hostId: "host_abc", selectedVersion: 1 },
+        payload: { hostId: "host_abc", hostName: "Workstation", selectedVersion: 1 },
       })
     );
-    expect(onConnected).toHaveBeenCalledWith("host_abc");
+    expect(onConnected).toHaveBeenCalledWith("host_abc", "Workstation");
   });
 
   it("dispatches other message types as UcpEvents", () => {

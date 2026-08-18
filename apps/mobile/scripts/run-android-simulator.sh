@@ -44,6 +44,8 @@ fi
 
 TARGET_AVD="${AGENT_DECK_ANDROID_AVD:-$DEFAULT_AVD}"
 BOOT_TIMEOUT_SECONDS="${AGENT_DECK_ANDROID_BOOT_TIMEOUT_SECONDS:-180}"
+METRO_PORT="${EXPO_PORT:-8081}"
+METRO_LABEL="com.agentdeck.mobile.metro"
 
 find_booted_emulator() {
   adb devices | awk '$2 == "device" && $1 ~ /^emulator-/ { print $1; exit }'
@@ -71,6 +73,10 @@ find_emulator_for_avd() {
 boot_completed() {
   local device="$1"
   adb -s "$device" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' | grep -qx '1'
+}
+
+metro_listening() {
+  lsof -nP -iTCP:"$METRO_PORT" -sTCP:LISTEN >/dev/null 2>&1
 }
 
 if ! avd_exists "$TARGET_AVD"; then
@@ -108,11 +114,37 @@ until boot_completed "$EMULATOR_ID"; do
   fi
 done
 
+if ! metro_listening; then
+  echo "Starting Expo Metro Bundler on port $METRO_PORT..."
+  launchctl remove "$METRO_LABEL" 2>/dev/null || true
+  launchctl submit -l "$METRO_LABEL" \
+    -o /tmp/agent-deck-expo-start.log \
+    -e /tmp/agent-deck-expo-start.log \
+    -- /bin/zsh -lc "cd '$ROOT_DIR' && exec pnpm exec expo start --localhost --clear --port '$METRO_PORT'"
+
+  SECONDS_WAITED=0
+  until metro_listening; do
+    sleep 1
+    SECONDS_WAITED=$((SECONDS_WAITED + 1))
+    if [ "$SECONDS_WAITED" -ge "$BOOT_TIMEOUT_SECONDS" ]; then
+      echo "Timed out waiting for Metro Bundler on port $METRO_PORT after ${BOOT_TIMEOUT_SECONDS}s." >&2
+      exit 1
+    fi
+  done
+fi
+
+adb -s "$EMULATOR_ID" reverse tcp:"$METRO_PORT" tcp:"$METRO_PORT" >/dev/null 2>&1 || true
+
 DEVICE_NAME="$(adb -s "$EMULATOR_ID" emu avd name 2>/dev/null | tr -d '\r' | head -n 1)"
 if [ -z "$DEVICE_NAME" ]; then
   DEVICE_NAME="$TARGET_AVD"
 fi
 
+DEV_CLIENT_URL="agentdeck://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A${METRO_PORT}"
+
 echo "Running Expo on emulator: $DEVICE_NAME ($EMULATOR_ID)"
 cd "$ROOT_DIR"
-pnpm exec expo run:android --device "$DEVICE_NAME" --no-bundler "$@"
+cd "$ROOT_DIR/android"
+./gradlew assembleDebug "$@"
+adb -s "$EMULATOR_ID" install -r "$ROOT_DIR/android/app/build/outputs/apk/debug/app-debug.apk" >/dev/null
+adb -s "$EMULATOR_ID" shell am start -W -a android.intent.action.VIEW -d "$DEV_CLIENT_URL" >/dev/null 2>&1 || true

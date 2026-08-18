@@ -115,5 +115,6 @@ cd apps/mobile
 ```
 
 That is the same command behind `pnpm android`. It waits for a booted emulator before invoking Expo and avoids the observed Expo emulator-start timeout.
+It also starts the Metro dev server through Expo so the debug build can load its JavaScript bundle immediately after install.
 
 Use development builds as the normal mobile workflow.

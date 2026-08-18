@@ -41,6 +41,8 @@ export interface UcpCapabilities {
   readonly resume: boolean;
   /** Whether session forking is supported. */
   readonly fork: boolean;
+  /** Whether the host can reliably focus the exact session in a desktop client. */
+  readonly desktopFocus?: boolean;
   /** Granular approval action capabilities. */
   readonly approvals: UcpApprovalCapabilities;
   /** Question/answer interaction capabilities. */

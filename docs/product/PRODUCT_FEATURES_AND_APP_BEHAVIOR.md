@@ -30,7 +30,7 @@ Approvals must preserve exact runtime semantics, raw commands, paths, network de
 
 1. **Local first:** core control works over LAN or a user-managed private network.
 2. **Server optional:** hosted relay and account services enhance convenience but never become required for local operation.
-3. **Attention first:** the default screen shows what needs the user now.
+3. **Control deck first:** the default screen shows every active agent and makes attention states dominant within that surface.
 4. **Minimal by default:** summaries before transcripts.
 5. **No false confirmation:** distinguish accepted, dispatched, confirmed, and completed states.
 6. **Runtime-native safety:** do not weaken sandbox or permission behavior.
@@ -63,62 +63,47 @@ Builds runtime adapters, portable skills, or organization-specific quick actions
 
 ## 5. Information architecture
 
-Recommended bottom navigation:
+The primary mobile experience is one control-deck screen. It has no persistent bottom navigation.
 
-- **Attention**
-- **Sessions**
-- **Quick Actions**
-- **Hosts**
-- **Settings**
+The control deck contains, in order:
 
-The initial route after launch should be Attention when pending items exist; otherwise Sessions.
+1. Host connection state and one overflow menu.
+2. An adaptive grid containing every active agent.
+3. Inline details for the selected agent.
+4. Contextual attention requests.
+5. Configurable command keys.
+6. Text steering.
 
-## 6. Attention screen
+Pairing replaces the deck when no host is paired. Session history, diagnostics, host setup, and settings remain secondary routes opened from the overflow menu. Approval detail and expanded session detail remain drill-in routes because safe decisions may require more context than the deck can show.
 
-### Sections
+## 6. Control deck
 
-1. Critical/high-risk approvals
-2. Other approvals
-3. Agent questions
-4. Failed or interrupted sessions
-5. Recently completed work
+### Agent inclusion
 
-### Card requirements
+Show every session in a working, queued, waiting-user, waiting-approval, failed, or interrupted state. Do not impose a product-level maximum below the architecture target of 20 active sessions; the deck scrolls as needed.
 
-Each attention card shows:
-
-- Host
-- Runtime
-- Project label
-- Session title
-- Request type
-- One-sentence explanation
-- Risk and reversibility
-- Age of request
-- Connection freshness
-- Available actions
+Completed sessions remain on the deck for one hour after their authoritative completion timestamp. A user may dismiss a completed session earlier. Dismissal is a phone-local display preference and survives app restart. Idle, cancelled, and expired completion tiles remain available in session history but do not occupy the deck.
 
 ### Sorting
 
-1. Critical risk
-2. High risk
-3. Expiring requests
-4. Waiting-user questions
-5. Failures
-6. Completion notices
+1. Waiting for approval or user input
+2. Failed or interrupted
+3. Running
+4. Queued
+5. Recently completed
 
-## 7. Session board
+Within a state group, show the most recently updated agent first.
 
-Each tile contains:
+### Agent key requirements
 
-- Runtime icon and text label
-- Project name
+Each key contains:
+
 - Human-readable session title
 - State label and icon
-- Current action, maximum two lines
-- Last meaningful update time
 - Pending approval/question count
 - Stale badge when disconnected
+
+Color may reinforce state but never replaces the state label, symbol, accessibility label, or selected treatment.
 
 ### Normalized UI states
 
@@ -133,7 +118,18 @@ Each tile contains:
 
 State is never communicated using color alone.
 
-## 8. Session detail
+## 7. Selection and desktop focus
+
+Tapping an agent key performs two independent actions:
+
+1. Select the agent and reveal its details on mobile immediately.
+2. Request that the host focus the exact corresponding session in the computer UI.
+
+Mobile detail must never depend on focus succeeding. Focus is capability-gated through `desktopFocus` and is shown only after the bridge has proven that it can target the exact session. The bridge acknowledges success only after the host integration confirms focus. A failure remains visible beside the selected details and offers another attempt; it is never silent.
+
+The product goal is that focus does not fail on a supported host integration. Closed desktop applications, revoked OS automation permissions, missing sessions, and unsupported shells are explicit degraded states. A bridge without a verified integration must not advertise `desktopFocus`.
+
+## 8. Selected agent details
 
 ### Always visible
 
@@ -152,6 +148,8 @@ State is never communicated using color alone.
 - Send/steer
 - Stop
 - Quick actions
+
+The essential detail is presented inline on the control deck. The expanded detail route remains available for plans, previews, tests, command activity, and raw details.
 
 ### Expandable sections
 
@@ -250,6 +248,8 @@ Initial actions:
 
 Actions are hidden or disabled based on runtime/session capabilities.
 
+The control deck pins three actions by default: Summarize current work, Run relevant tests, and Stop. Defaults are replaced by available actions when a capability is absent. Users may pin any number of actions exposed for the selected session. Pinned actions scroll horizontally rather than expanding the primary layout into a dashboard. Configuration is phone-local and survives app restart.
+
 ## 14. Host behavior
 
 Host states:
@@ -314,7 +314,7 @@ Without an optional server, the app still works when foregrounded. Remote backgr
 
 ### No host paired
 
-Show QR pairing entry point and LAN/private-network explanation.
+Replace the deck with one pairing-code entry point and a concise LAN/private-network explanation. After synchronization, return directly to the control deck.
 
 ### No runtime found
 

@@ -78,6 +78,7 @@ export interface NormalizedQuestion {
 
 /** Discriminated union of all inbound UCP events the mobile store handles. */
 export type UcpEvent =
+  | { type: "session.started"; payload: SessionStartedPayload }
   | { type: "session.created"; payload: SessionCreatedPayload }
   | { type: "session.updated"; payload: SessionUpdatedPayload }
   | { type: "session.state_changed"; payload: SessionStateChangedPayload }
@@ -87,6 +88,8 @@ export type UcpEvent =
   | { type: "approval.resolved"; payload: ApprovalResolvedPayload }
   | { type: "question.requested"; payload: QuestionRequestedPayload }
   | { type: "question.resolved"; payload: QuestionResolvedPayload }
+  | { type: "command.ack"; payload: CommandOutcomePayload }
+  | { type: "command.nack"; payload: CommandOutcomePayload }
   | { type: "host.snapshot"; payload: HostSnapshotPayload }
   | { type: string; payload: Record<string, unknown> };
 
@@ -102,6 +105,18 @@ export interface SessionCreatedPayload {
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SessionStartedPayload {
+  id: string;
+  title?: string;
+  state?: SessionState;
+  summary?: string;
+  currentAction?: string | null;
+  capabilities?: Record<string, unknown>;
+  version?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface SessionUpdatedPayload {
@@ -174,4 +189,10 @@ export interface HostSnapshotPayload {
   approvals: ApprovalRequestedPayload[];
   questions: QuestionRequestedPayload[];
   sequence: number;
+}
+
+export interface CommandOutcomePayload {
+  commandId: string;
+  status?: string;
+  error?: string;
 }

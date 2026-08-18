@@ -67,23 +67,27 @@ export class CodexClient extends EventEmitter {
   }
 
   async listThreads(params: Record<string, unknown> = {}): Promise<JsonRpcResponse> {
-    return this.sendRequest('threads/list', params);
+    return this.sendRequest('thread/list', params);
   }
 
-  async createThread(params: { workingDirectory: string; initialInstruction?: string | undefined }): Promise<JsonRpcResponse> {
-    return this.sendRequest('threads/create', params);
+  async startThread(params: { cwd?: string | undefined }): Promise<JsonRpcResponse> {
+    return this.sendRequest('thread/start', params);
   }
 
-  async getThread(threadId: string): Promise<JsonRpcResponse> {
-    return this.sendRequest('threads/get', { threadId });
+  async readThread(threadId: string): Promise<JsonRpcResponse> {
+    return this.sendRequest('thread/read', { threadId, includeTurns: false });
   }
 
-  async sendTurn(threadId: string, text: string, idempotencyKey: string): Promise<JsonRpcResponse> {
-    return this.sendRequest('turns/send', { threadId, text, idempotencyKey });
+  async startTurn(threadId: string, text: string, idempotencyKey: string): Promise<JsonRpcResponse> {
+    return this.sendRequest('turn/start', {
+      threadId,
+      clientUserMessageId: createMessageId(idempotencyKey),
+      input: [{ type: 'text', text }],
+    });
   }
 
-  async cancelThread(threadId: string, idempotencyKey: string): Promise<JsonRpcResponse> {
-    return this.sendRequest('turns/cancel', { threadId, idempotencyKey });
+  async interruptTurn(threadId: string, turnId: string): Promise<JsonRpcResponse> {
+    return this.sendRequest('turn/interrupt', { threadId, turnId });
   }
 
   async resolveApproval(
@@ -131,4 +135,8 @@ export class CodexClient extends EventEmitter {
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
     if (!this.process.killed) this.process.kill('SIGKILL');
   }
+}
+
+function createMessageId(value: string): string {
+  return `msg_${Buffer.from(value).toString('hex').slice(0, 48)}`;
 }

@@ -17,7 +17,7 @@ Use this checklist as a release-gate tracker, not as a historical implementation
 - [ ] Expo SDK 56 project builds on iOS and Android
 - [ ] Local network permission text approved
 - [ ] Android network security config generated
-- [ ] QR camera flow works on physical devices
+- [x] Four-digit pairing UI works in the cross-platform mobile build
 - [ ] SecureStore key-size/error handling tested
 - [ ] Expo SQLite migrations tested
 - [ ] Maestro flow runs on both simulators
@@ -44,7 +44,7 @@ Current gap summary:
 ## Runtime adapters
 
 - [ ] Codex app-server proof spike passes
-- [ ] OpenCode HTTP/SSE proof spike passes
+- [x] OpenCode HTTP/SSE proof spike passes against local OpenCode `1.17.18`; bridge live smoke covers start and follow-up instruction dispatch
 - [x] Codex and OpenCode are the only runtime adapters required by v1
 - [x] Claude `query()`/interrupt/approval proof spike is explicitly deferred post-v1
 - [ ] Runtime compatibility mode exists
@@ -71,7 +71,7 @@ Current gap summary:
 
 ## Security
 
-- [x] Pairing QR is single-use and expiring
+- [x] Pairing code is single-use and expiring
 - [ ] Device revocation closes active connection
 - [x] UCP frames reject replay/tampering
 - [ ] Push payload contains no private detail

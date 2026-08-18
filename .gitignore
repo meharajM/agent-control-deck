@@ -4,3 +4,6 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
+apps/bridge/*.db
+apps/bridge/*.db-*
+apps/mobile/.expo/

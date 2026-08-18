@@ -34,7 +34,7 @@ Mobile app -- local Wi-Fi/private network --> Host bridge --> Coding runtimes
 
 The host bridge is required and runs on the user's machine. A managed relay is optional and may be added later for frictionless remote connectivity and push notifications. LAN and private-network operation remain functional when all optional hosted services are unavailable.
 
-## Start the bridge
+## Start the host
 
 Build the workspace before the first launch:
 
@@ -43,7 +43,15 @@ pnpm install
 pnpm build
 ```
 
-The bridge uses the `BRIDGE_RUNTIME` selector to start exactly one runtime adapter. Use one of these explicit commands:
+Normal users click the Agent Deck Host tray/menu-bar icon. It builds or starts the local bridge, detects the installed Codex or OpenCode runtime, publishes the host on the local network, and shows a temporary 4-digit pairing code.
+
+For development, start the host with automatic runtime detection:
+
+```bash
+pnpm start:agent-deck
+```
+
+The bridge still supports explicit runtime commands:
 
 ```bash
 pnpm start:bridge:fake
@@ -52,6 +60,14 @@ pnpm start:bridge:opencode
 ```
 
 The equivalent direct form is `BRIDGE_RUNTIME=fake pnpm start:bridge`, replacing `fake` with `codex` or `opencode`. The default bridge port is `8765`; override it without changing runtime selection, for example `BRIDGE_PORT=9000 pnpm start:bridge:codex`. Runtime credentials remain on the host and must not be placed in command output, documentation, or logs.
+
+The bridge prints a one-time 4-digit pairing code and advertises itself as `_agent-deck._tcp` on the local network. In Agent Deck, tap `Find Computers`, select the host, enter the code, and tap `Connect`. For local Android simulator smoke testing only, use the plaintext compatibility path:
+
+```bash
+BRIDGE_RUNTIME=opencode BRIDGE_DEV_MODE=true BRIDGE_INTERFACE=127.0.0.1 pnpm start:bridge
+```
+
+In the simulator, first forward the port with `adb reverse tcp:8765 tcp:8765`, then tap `Use Local Simulator Bridge`. Physical Android devices and iOS devices require the host and phone to be on the same Wi-Fi network and require local-network permission. Android emulators do not reliably support multicast discovery. Do not use `BRIDGE_DEV_MODE` on a LAN or production bridge; secure pairing remains the default.
 
 ## Repository status
 
@@ -64,6 +80,7 @@ This repository now contains both the blueprint and an active implementation. Cu
 - QA harnesses and conformance and chaos scenarios exist in `packages/qa-scenarios`.
 - The current workspace baseline is a green `pnpm test` and `pnpm typecheck`.
 - A live OpenCode bridge probe is verified against local OpenCode `1.17.18` after the bridge server-manager ESM fix.
+- The live OpenCode path is verified through `connection.initialized`, `host.snapshot`, `command/start`, `session.started`, `command.ack`, `command/send`, and `instruction.accepted` using OpenCode `1.17.18`.
 - Local simulator validation is partially blocked by host tooling: the repository now has a validated Android wrapper path that boots or reuses `ContextEngine_Test_Device`, builds, installs, and opens the dev client under JDK 17; plain `expo run:android` remains less reliable when Expo is responsible for starting the emulator itself. iOS simulator builds still fail on Xcode 16.4 because the resolved Swift package graph requires Swift tools `6.2.0` while Xcode 16.4 only provides Swift `6.1.x`.
 
 Known QA-readiness gaps remain:

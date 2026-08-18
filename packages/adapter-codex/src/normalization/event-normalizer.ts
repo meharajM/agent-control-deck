@@ -9,6 +9,49 @@ export function normalizeCodexEvent(
   const timestamp = new Date().toISOString();
 
   switch (method) {
+    case 'thread/started': {
+      const p = params as { thread?: { id?: string; cwd?: string; status?: unknown } };
+      return {
+        type: 'session.started',
+        sessionId: bridgeSessionId,
+        payload: {
+          threadId: p.thread?.id,
+          workingDirectory: p.thread?.cwd,
+        },
+        timestamp,
+      };
+    }
+    case 'turn/started': {
+      const p = params as { threadId?: string; turn?: { id?: string } };
+      return {
+        type: 'session.working',
+        sessionId: bridgeSessionId,
+        payload: { threadId: p.threadId, turnId: p.turn?.id },
+        timestamp,
+      };
+    }
+    case 'turn/completed': {
+      const p = params as { turn?: { id?: string; status?: string; items?: unknown[] } };
+      const status = p.turn?.status;
+      return {
+        type: status === 'interrupted' ? 'session.cancelled' : status === 'failed' ? 'session.failed' : 'session.completed',
+        sessionId: bridgeSessionId,
+        payload: { turnId: p.turn?.id, items: p.turn?.items },
+        timestamp,
+      };
+    }
+    case 'thread/status/changed': {
+      const p = params as { status?: { type?: string } };
+      if (p.status?.type === 'active') {
+        return {
+          type: 'session.working',
+          sessionId: bridgeSessionId,
+          payload: { status: p.status.type },
+          timestamp,
+        };
+      }
+      return null;
+    }
     case 'notifications/thread_created': {
       const p = params as { threadId: string; workingDirectory?: string };
       return {

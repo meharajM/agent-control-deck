@@ -12,6 +12,7 @@
     "start:bridge:fake": "BRIDGE_RUNTIME=fake pnpm start:bridge",
     "start:bridge:codex": "BRIDGE_RUNTIME=codex pnpm start:bridge",
     "start:bridge:opencode": "BRIDGE_RUNTIME=opencode pnpm start:bridge",
+    "start:agent-deck": "pnpm build && pnpm start:bridge",
     "dev": "pnpm build && pnpm --filter @agent-deck/bridge start"
   },
   "devDependencies": {

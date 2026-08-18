@@ -6,6 +6,7 @@
 
 import { spawn, ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import * as net from 'node:net';
 import { generatePassword, createAuthHeader, type ServerAuthInfo } from './auth.js';
 
 export interface ServerInfo extends ServerAuthInfo {
@@ -52,8 +53,8 @@ export class ServerManager extends EventEmitter {
 
     const env: Record<string, string> = {
       ...process.env,
-      OPENCODE_SERVER_PASSWORD: password,
       ...this.options.env,
+      OPENCODE_SERVER_PASSWORD: password,
     };
 
     const serverProcess = spawn('opencode', ['serve', '--hostname', host, '--port', String(port)], {
@@ -137,7 +138,6 @@ export class ServerManager extends EventEmitter {
    */
   private async findFreePort(): Promise<number> {
     return new Promise((resolve, reject) => {
-      const net = require('node:net');
       const server = net.createServer();
       server.listen(0, '127.0.0.1', () => {
         const port = (server.address() as { port: number }).port;
@@ -158,7 +158,7 @@ export class ServerManager extends EventEmitter {
 
     while (Date.now() - startTime < timeoutMs) {
       try {
-        const response = await fetch(`${baseUrl}/api/health`, {
+        const response = await fetch(`${baseUrl}/global/health`, {
           method: 'GET',
           headers: { Authorization: authHeader },
         });
@@ -172,6 +172,7 @@ export class ServerManager extends EventEmitter {
       await new Promise((r) => setTimeout(r, 500));
     }
 
+    await this.stop();
     throw new Error(`OpenCode server failed to start within ${timeoutMs}ms`);
   }
 }
