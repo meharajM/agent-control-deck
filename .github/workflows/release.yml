@@ -1,0 +1,70 @@
+name: Tagged mobile builds
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/mobile/android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-deck-android-${{ github.ref_name }}
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+
+  ios-simulator:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/mobile/ios && pod install --deployment
+      - run: >-
+          xcodebuild -workspace apps/mobile/ios/AgentDeck.xcworkspace
+          -scheme AgentDeck -configuration Release -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath /tmp/agentdeck-ios-release
+          CODE_SIGNING_ALLOWED=NO build
+      - run: ditto -c -k --sequesterRsrc --keepParent /tmp/agentdeck-ios-release/Build/Products/Release-iphonesimulator/AgentDeck.app agent-deck-ios-simulator-${{ github.ref_name }}.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-deck-ios-simulator-${{ github.ref_name }}
+          path: agent-deck-ios-simulator-${{ github.ref_name }}.zip
+
+  github-release:
+    needs: [android, ios-simulator]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes release-assets/**/**
+        env:
+          GH_TOKEN: ${{ github.token }}

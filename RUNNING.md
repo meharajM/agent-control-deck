@@ -22,6 +22,8 @@ This guide walks through running the bridge and mobile app end-to-end on your de
 pnpm install
 ```
 
+For a normal user setup instead of development work, run `./setup.sh`. It persists the host configuration and installs the automatic OpenCode/bridge launcher.
+
 ---
 
 ## 2. Build All Packages
@@ -53,6 +55,8 @@ Auto-started demo session: <uuid>
 The bridge listens on **port 8765** by default. Change with `BRIDGE_PORT=9000 pnpm start:bridge`.
 
 The bridge database is at `./bridge.db` (or `BRIDGE_DB_PATH=:memory:` for ephemeral).
+
+For OpenCode session continuity, prefer `./setup.sh`. It starts one authenticated loopback `opencode serve` instance, points the bridge at it, and makes normal `opencode` invocations attach to that instance. The bridge imports existing sessions and polls for new ones.
 
 ---
 

@@ -14,6 +14,10 @@ export interface AdapterManagerDeps {
   hostId: HostId;
 }
 
+type SessionDiscoveringAdapter = RuntimeAdapter & {
+  discoverSessions?: () => Promise<void>;
+};
+
 export class AdapterManager {
   private readonly adapters = new Map<string, { adapter: RuntimeAdapter; probe: ProbeResult }>();
   private readonly listeners = new Map<string, (event: AdapterEvent) => void>();
@@ -34,6 +38,7 @@ export class AdapterManager {
     this.adapters.set(id, { adapter, probe });
     this.selectedAdapterId = id;
     this.ensureRuntimeInstance(id, adapter, probe);
+    await (adapter as SessionDiscoveringAdapter).discoverSessions?.();
   }
 
   getAdapter(id: string): RuntimeAdapter | undefined {
@@ -179,14 +184,18 @@ export class AdapterManager {
 
   private updateSession(event: AdapterEvent): void {
     const payload = event.payload as Record<string, unknown>;
+    const runtimeState = typeof payload.status === 'string' ? payload.status : undefined;
     const states: Record<string, string> = {
-      'session.started': 'running',
+      'session.started': runtimeState === 'idle' ? 'idle' : runtimeState === 'completed' ? 'completed' : 'running',
       'session.completed': 'completed',
       'session.failed': 'failed',
       'session.cancelled': 'cancelled',
       'session.interrupted': 'interrupted',
+      'session.idle': 'idle',
+      'session.working': 'running',
     };
     const state = states[event.type];
+    const title = typeof payload.title === 'string' ? payload.title : undefined;
     const summary = typeof payload.summary === 'string' ? payload.summary : undefined;
     const currentAction =
       typeof payload.currentAction === 'string'
@@ -201,6 +210,7 @@ export class AdapterManager {
       .prepare(
         `UPDATE sessions
          SET state = COALESCE(@state, state),
+             title = COALESCE(@title, title),
              summary = COALESCE(@summary, summary),
              current_action = COALESCE(@currentAction, current_action),
              version = version + 1,
@@ -209,6 +219,7 @@ export class AdapterManager {
       )
       .run({
         id: event.sessionId,
+        title: title ?? null,
         state: state ?? null,
         summary: summary ?? null,
         currentAction: currentAction ?? null,

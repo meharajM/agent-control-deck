@@ -4,6 +4,8 @@
 
 A new user should reach a connected fake or real runtime without creating an Agent Deck account.
 
+For the current open-source checkout, the supported one-time host entrypoint is `./setup.sh`. It asks for runtime, project directory, and start-on-login preference; writes host-only configuration; starts the bridge; and configures the persistent OpenCode attach path when OpenCode is selected.
+
 ## 2. Host installation
 
 ### macOS
@@ -12,6 +14,7 @@ A new user should reach a connected fake or real runtime without creating an Age
 - Install into user Applications/support directories
 - Optional LaunchAgent for start at login
 - CLI available as `agent-deck`
+- Repository fallback: `./setup.sh` installs `agent-deck-host` and a persistent OpenCode attach wrapper under the user profile.
 
 ### Windows
 
@@ -25,6 +28,7 @@ A new user should reach a connected fake or real runtime without creating an Age
 - `.deb`, `.rpm`, or portable archive
 - systemd user unit where available
 - foreground CLI fallback
+- Repository fallback: `./setup.sh` installs a systemd user service when `systemctl --user` is available.
 
 ## 3. First-run host setup
 

@@ -5,7 +5,6 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { randomUUID } from 'node:crypto';
 import type {
   RuntimeAdapter,
   AdapterEvent,
@@ -98,11 +97,24 @@ export class OpenCodeAdapter extends EventEmitter implements RuntimeAdapter {
   private client: OpenCodeClient | null = null;
   private sessions = new Map<string, SessionMapping>();
   private idempotencyKeys = new Set<string>();
+  private discoveryTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly defaultWorkingDirectory: string | undefined;
   private disposed = false;
 
-constructor(options: { cwd?: string } = {}) {
+  constructor(options: {
+    cwd?: string;
+    serverUrl?: string;
+    serverUsername?: string;
+    serverPassword?: string;
+  } = {}) {
     super();
-    const serverOptions: ServerManagerOptions = { cwd: options.cwd };
+    this.defaultWorkingDirectory = options.cwd ?? process.env.OPENCODE_WORKDIR;
+    const serverOptions: ServerManagerOptions = {
+      cwd: this.defaultWorkingDirectory,
+      serverUrl: options.serverUrl,
+      username: options.serverUsername,
+      password: options.serverPassword,
+    };
     this.serverManager = new ServerManager(serverOptions);
     this.serverManager.on('exit', () => this.handleServerExit());
   }
@@ -142,19 +154,13 @@ constructor(options: { cwd?: string } = {}) {
   async startSession(params: StartSessionParams): Promise<string> {
     this.ensureNotDisposed();
 
-    // Start server if needed
-    if (!this.client) {
-      const serverInfo = await this.serverManager.start();
-      this.client = new OpenCodeClient(serverInfo);
-      this.client.on('event', (event) => this.handleOpenCodeEvent(event));
-      this.client.connectEvents();
-    }
+    const client = await this.ensureClient();
 
     // Create OpenCode session
-    const opencodeSession = await this.client.createSession(params.workingDirectory);
+    const opencodeSession = await client.createSession(params.workingDirectory ?? this.defaultWorkingDirectory);
 
     // Map bridge session ID to OpenCode session ID
-    const bridgeSessionId = randomUUID();
+    const bridgeSessionId = opencodeSession.id;
     const mapping: SessionMapping = {
       bridgeSessionId,
       opencodeSessionId: opencodeSession.id,
@@ -170,7 +176,7 @@ constructor(options: { cwd?: string } = {}) {
     this.emitStartedEvent(mapping, params.workingDirectory);
 
     if (params.instruction) {
-      await this.client.sendPrompt(opencodeSession.id, params.instruction);
+      await client.sendPrompt(opencodeSession.id, params.instruction);
     }
 
     return bridgeSessionId;
@@ -271,6 +277,10 @@ constructor(options: { cwd?: string } = {}) {
     if (this.disposed) return;
     this.disposed = true;
 
+    if (this.discoveryTimer) {
+      clearInterval(this.discoveryTimer);
+      this.discoveryTimer = null;
+    }
     this.client?.disconnectEvents();
     await this.serverManager.stop();
 
@@ -410,6 +420,66 @@ constructor(options: { cwd?: string } = {}) {
       capabilities: SUPPORTED_CAPABILITIES,
       metadata: { opencodeSessionId: m.opencodeSessionId },
     }));
+  }
+
+  /**
+   * Import sessions from a persistent OpenCode server configured by setup.sh.
+   * The optional method keeps RuntimeAdapter compatible while allowing the
+   * bridge manager to discover sessions created outside the mobile app.
+   */
+  async discoverSessions(): Promise<void> {
+    if (this.disposed || !this.serverManager.isExternalConfigured()) return;
+
+    try {
+      const client = await this.ensureClient();
+      const runtimeSessions = await client.listSessions();
+      for (const runtimeSession of runtimeSessions) {
+        if (this.findBridgeSessionId(runtimeSession.id)) continue;
+
+        const status = normalizeSessionStatus(runtimeSession.status);
+        const mapping: SessionMapping = {
+          bridgeSessionId: runtimeSession.id,
+          opencodeSessionId: runtimeSession.id,
+          workingDirectory: runtimeSession.workingDirectory ?? runtimeSession.location?.directory ?? this.defaultWorkingDirectory,
+          status,
+          startedEventEmitted: true,
+          capabilities: SUPPORTED_CAPABILITIES,
+        };
+        this.sessions.set(mapping.bridgeSessionId, mapping);
+        this.emit('session_event', {
+          type: 'session.started',
+          sessionId: mapping.bridgeSessionId,
+          payload: {
+            opencodeSessionId: mapping.opencodeSessionId,
+            workingDirectory: mapping.workingDirectory,
+            title: runtimeSession.title ?? 'OpenCode session',
+            status,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch {
+      // OpenCode may not be running yet. The next poll retries without taking
+      // down the bridge or exposing runtime credentials to logs.
+      this.client = null;
+      await this.serverManager.stop();
+    }
+
+    if (!this.discoveryTimer) {
+      this.discoveryTimer = setInterval(() => {
+        void this.discoverSessions();
+      }, 5000);
+    }
+  }
+
+  private async ensureClient(): Promise<OpenCodeClient> {
+    if (this.client) return this.client;
+
+    const serverInfo = await this.serverManager.start();
+    this.client = new OpenCodeClient(serverInfo);
+    this.client.on('event', (event) => this.handleOpenCodeEvent(event));
+    this.client.connectEvents();
+    return this.client;
   }
 }
 

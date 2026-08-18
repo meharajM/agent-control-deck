@@ -41,6 +41,8 @@ Requirements:
 - Public beta
 - Stable store release
 
+Tagged preview builds run `.github/workflows/release.yml`. The workflow publishes an unsigned Android debug APK for device testing and an unsigned iOS Simulator app archive. Store/TestFlight builds still require platform signing credentials and are not produced by the public workflow.
+
 ## 4. No-server deployment
 
 Document:
@@ -93,3 +95,5 @@ Post-v1 adapters follow the same process independently and do not block the v1 r
 - Changelog complete
 - Signed artifacts verified
 - Local-only operation smoke-tested with internet blocked
+- `setup.sh` smoke-tested on a clean host profile
+- Tagged Android and iOS preview artifacts attached to the GitHub release

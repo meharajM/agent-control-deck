@@ -89,4 +89,28 @@ describe('ServerManager', () => {
     await manager.start();
     expect(manager.isRunning()).toBe(true);
   });
+
+  it('attaches to an existing authenticated server without owning its process', async () => {
+    const external = new ServerManager({
+      serverUrl: 'http://127.0.0.1:4096',
+      username: 'agent-deck',
+      password: 'persistent-secret',
+    });
+
+    const info = await external.start();
+
+    expect(info).toMatchObject({
+      baseUrl: 'http://127.0.0.1:4096',
+      host: '127.0.0.1',
+      port: 4096,
+      managed: false,
+      username: 'agent-deck',
+      password: 'persistent-secret',
+      authHeader: expect.stringMatching(/^Basic /),
+    });
+    expect(info.process).toBeUndefined();
+
+    await external.stop();
+    expect(external.isRunning()).toBe(false);
+  });
 });

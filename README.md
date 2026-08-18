@@ -2,6 +2,11 @@
 
 A local-first, server-optional mobile command surface for controlling AI coding agents running on a user's own computer.
 
+[![CI](https://github.com/meharajM/agent-control-deck/actions/workflows/ci.yml/badge.svg)](https://github.com/meharajM/agent-control-deck/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+> Early preview: install the phone app from a tagged development build or build it locally. The host bridge and runtime remain open-source and local-first.
+
 ## V1 supported runtimes
 
 - OpenAI Codex
@@ -34,16 +39,30 @@ Mobile app -- local Wi-Fi/private network --> Host bridge --> Coding runtimes
 
 The host bridge is required and runs on the user's machine. A managed relay is optional and may be added later for frictionless remote connectivity and push notifications. LAN and private-network operation remain functional when all optional hosted services are unavailable.
 
-## Start the host
+## Quick start
 
-Build the workspace before the first launch:
+Install the phone app from the tagged release assets when available, or build a development app from this repository. Then run one host setup command:
+
+```bash
+git clone https://github.com/meharajM/agent-control-deck.git
+cd agent-control-deck
+./setup.sh
+```
+
+`setup.sh` installs dependencies, builds the host, detects OpenCode or Codex, asks for the project directory and start-on-login preference, installs the host launcher, starts the local bridge, and prints the phone pairing endpoint. Runtime credentials stay in a user-only config file. On macOS it installs a LaunchAgent; on Linux it installs a systemd user service when available.
+
+OpenCode setup uses one authenticated loopback server. Running `opencode` after setup attaches to that server, while the bridge imports and watches sessions created from the terminal or phone. The phone and computer must share a Wi-Fi or private network.
+
+Read [the user guide](docs/product/USER_GUIDE.md) for phone installation, pairing, task control, approvals, reconnect behavior, and troubleshooting.
+
+## Start the host manually
+
+Build the workspace before a manual launch:
 
 ```bash
 pnpm install
 pnpm build
 ```
-
-Normal users click the Agent Deck Host tray/menu-bar icon. It builds or starts the local bridge, detects the installed Codex or OpenCode runtime, publishes the host on the local network, and shows a temporary 4-digit pairing code.
 
 For development, start the host with automatic runtime detection:
 
@@ -61,7 +80,7 @@ pnpm start:bridge:opencode
 
 The equivalent direct form is `BRIDGE_RUNTIME=fake pnpm start:bridge`, replacing `fake` with `codex` or `opencode`. The default bridge port is `8765`; override it without changing runtime selection, for example `BRIDGE_PORT=9000 pnpm start:bridge:codex`. Runtime credentials remain on the host and must not be placed in command output, documentation, or logs.
 
-The bridge prints a one-time 4-digit pairing code and advertises itself as `_agent-deck._tcp` on the local network. In Agent Deck, tap `Find Computers`, select the host, enter the code, and tap `Connect`. For local Android simulator smoke testing only, use the plaintext compatibility path:
+The bridge prints a temporary 4-digit pairing code and advertises itself as `_agent-deck._tcp` on the local network. In Agent Deck, tap `Find Computers`, select the host, enter the code, and tap `Connect`. For local Android simulator smoke testing only, use the plaintext compatibility path:
 
 ```bash
 BRIDGE_RUNTIME=opencode BRIDGE_DEV_MODE=true BRIDGE_INTERFACE=127.0.0.1 pnpm start:bridge
@@ -81,13 +100,13 @@ This repository now contains both the blueprint and an active implementation. Cu
 - The current workspace baseline is a green `pnpm test` and `pnpm typecheck`.
 - A live OpenCode bridge probe is verified against local OpenCode `1.17.18` after the bridge server-manager ESM fix.
 - The live OpenCode path is verified through `connection.initialized`, `host.snapshot`, `command/start`, `session.started`, `command.ack`, `command/send`, and `instruction.accepted` using OpenCode `1.17.18`.
-- Local simulator validation is partially blocked by host tooling: the repository now has a validated Android wrapper path that boots or reuses `ContextEngine_Test_Device`, builds, installs, and opens the dev client under JDK 17; plain `expo run:android` remains less reliable when Expo is responsible for starting the emulator itself. iOS simulator builds still fail on Xcode 16.4 because the resolved Swift package graph requires Swift tools `6.2.0` while Xcode 16.4 only provides Swift `6.1.x`.
+- Local device/simulator builds are supported with the checked-in Expo native projects. The current verified host uses JDK 17 for Android and Xcode 26.6 for iOS.
 
 Known QA-readiness gaps remain:
 
-- Pairing and authenticated encryption are implemented but are not yet fully the default bridge startup path.
+- Pairing and authenticated encryption are implemented in the default bridge startup path; release packaging and independent security review remain open gates.
 - Private-network routing still has documented stubs around network identification, latency correlation, and interface-to-IP resolution.
-- Maestro and device validation, release packaging, and installer and start-on-login validation are still release-gate work.
+- Maestro, independent device coverage, public store signing, and bundled host installers remain release-gate work.
 
 ## Recommended implementation stack
 
@@ -103,6 +122,8 @@ Known QA-readiness gaps remain:
 
 ## Read first
 
+For installation, pairing, running the host, and managing agent tasks, start with the [Agent Deck User Guide](docs/product/USER_GUIDE.md).
+
 1. [Product Features and App Behavior](docs/product/PRODUCT_FEATURES_AND_APP_BEHAVIOR.md)
 2. [Architecture](docs/architecture/ARCHITECTURE.md)
 3. [Local-First Networking](docs/architecture/LOCAL_FIRST_NETWORKING.md)
@@ -110,6 +131,15 @@ Known QA-readiness gaps remain:
 5. [Development Plan](docs/planning/DEVELOPMENT_PLAN.md)
 6. [Multi-Agent Development Plan](docs/planning/MULTI_AGENT_DEVELOPMENT_PLAN.md)
 7. [Security and Threat Model](docs/security/SECURITY_AND_THREAT_MODEL.md)
+
+## Open-source project
+
+- [Setup and user guide](docs/product/USER_GUIDE.md)
+- [Contributor guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Changelog](CHANGELOG.md)
+- [License](LICENSE)
 
 ## Definition of the first usable release
 

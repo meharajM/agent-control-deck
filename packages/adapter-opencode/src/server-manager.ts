@@ -7,17 +7,21 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import * as net from 'node:net';
-import { generatePassword, createAuthHeader, type ServerAuthInfo } from './auth.js';
+import { generatePassword, createAuthHeader, createServerAuthInfo, type ServerAuthInfo } from './auth.js';
 
 export interface ServerInfo extends ServerAuthInfo {
   port: number;
   host: string;
-  process: ChildProcess;
+  process?: ChildProcess;
+  managed: boolean;
 }
 
 export interface ServerManagerOptions {
   cwd?: string | undefined;
   env?: Record<string, string>;
+  serverUrl?: string | undefined;
+  username?: string | undefined;
+  password?: string | undefined;
 }
 
 /**
@@ -45,15 +49,40 @@ export class ServerManager extends EventEmitter {
       throw new Error('Server already running');
     }
 
+    const configuredUrl = this.options.serverUrl ?? process.env.OPENCODE_SERVER_URL;
+    const username = this.options.username ?? process.env.OPENCODE_SERVER_USERNAME ?? 'opencode';
+
+    if (configuredUrl) {
+      const parsed = new URL(configuredUrl);
+      const host = parsed.hostname;
+      const port = Number(parsed.port || 80);
+      const baseUrl = configuredUrl.replace(/\/$/, '');
+      const password = this.options.password ?? process.env.OPENCODE_SERVER_PASSWORD ?? '';
+      if (!password) {
+        throw new Error('OPENCODE_SERVER_PASSWORD is required when attaching to an existing OpenCode server');
+      }
+
+      this.serverInfo = {
+        ...createServerAuthInfo(host, port, password, username),
+        baseUrl,
+        port,
+        host,
+        managed: false,
+      };
+      await this.waitForReady();
+      return this.serverInfo!;
+    }
+
     const port = await this.findFreePort();
     const password = generatePassword();
-    const authHeader = createAuthHeader(password);
+    const authHeader = createAuthHeader(password, username);
     const host = '127.0.0.1';
     const baseUrl = `http://${host}:${port}`;
 
     const env: Record<string, string> = {
       ...process.env,
       ...this.options.env,
+      OPENCODE_SERVER_USERNAME: username,
       OPENCODE_SERVER_PASSWORD: password,
     };
 
@@ -63,7 +92,7 @@ export class ServerManager extends EventEmitter {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    this.serverInfo = { port, host, baseUrl, authHeader, password, process: serverProcess };
+    this.serverInfo = { port, host, baseUrl, authHeader, password, username, process: serverProcess, managed: true };
 
     serverProcess.stdout?.on('data', (data: Buffer) => {
       this.emit('stdout', data.toString());
@@ -85,7 +114,7 @@ export class ServerManager extends EventEmitter {
     // Wait for server to be ready via health check
     await this.waitForReady();
 
-    return this.serverInfo;
+    return this.serverInfo!;
   }
 
   /**
@@ -116,6 +145,8 @@ export class ServerManager extends EventEmitter {
       });
 
       this.serverInfo = null;
+    } else {
+      this.serverInfo = null;
     }
   }
 
@@ -124,6 +155,10 @@ export class ServerManager extends EventEmitter {
    */
   getServerInfo(): ServerInfo | null {
     return this.serverInfo;
+  }
+
+  isExternalConfigured(): boolean {
+    return Boolean(this.options.serverUrl ?? process.env.OPENCODE_SERVER_URL);
   }
 
   /**

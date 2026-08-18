@@ -18,8 +18,8 @@ export function generatePassword(): string {
  * Create Basic Auth header value for OpenCode server.
  * Username is always 'opencode', password is the generated secret.
  */
-export function createAuthHeader(password: string): string {
-  const credentials = `opencode:${password}`;
+export function createAuthHeader(password: string, username = 'opencode'): string {
+  const credentials = `${username}:${password}`;
   return `Basic ${Buffer.from(credentials).toString('base64')}`;
 }
 
@@ -30,14 +30,16 @@ export interface ServerAuthInfo {
   baseUrl: string;
   authHeader: string;
   password: string;
+  username: string;
 }
 
 export function createServerAuthInfo(
   host: string,
   port: number,
-  password: string
+  password: string,
+  username = 'opencode',
 ): ServerAuthInfo {
   const baseUrl = `http://${host}:${port}`;
-  const authHeader = createAuthHeader(password);
-  return { baseUrl, authHeader, password };
+  const authHeader = createAuthHeader(password, username);
+  return { baseUrl, authHeader, password, username };
 }
