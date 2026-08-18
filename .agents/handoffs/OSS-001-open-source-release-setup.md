@@ -6,7 +6,7 @@
 - Added persistent OpenCode server attachment, authenticated client setup, session discovery, stable runtime session IDs, and polling for sessions created outside the phone.
 - Added open-source repository metadata: Apache-2.0 license, security policy, code of conduct, changelog, issue templates, pull request template, contributor guidance, user guide, and release documentation.
 - Added CI and version-tag workflows for quality checks plus Android debug and iOS simulator release artifacts.
-- Bumped the preview version to `0.1.0-preview.1`; the corrective hosted-build release is `0.1.0-preview.2`.
+- Bumped the preview version to `0.1.0-preview.1`; corrective hosted-build releases are `0.1.0-preview.2` and `0.1.0-preview.3`.
 
 ## Files changed
 
@@ -65,4 +65,4 @@ Coordinator / release maintainer; suggested secondary reviewers are bridge/secur
 
 - Branch: `main` (explicitly requested by the user for this release integration).
 - Primary commit: `cc673d0`.
-- Handoff was created in commit `c843f63`; the corrective release tag is created after the hosted workflow fixes below.
+- Handoff was created in commit `c843f63`; the latest corrective release tag is created after the hosted Xcode pin below.

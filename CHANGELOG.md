@@ -12,6 +12,10 @@ All notable changes are recorded here. Until the first stable release, entries m
 
 - Fixed clean-runner CI dependency ordering and CocoaPods installation for tagged iOS builds.
 
+## 0.1.0-preview.3
+
+- Pinned the hosted iOS release build to the installed Xcode 26 toolchain required by Expo SDK 56.
+
 ## 0.1.0-preview.1
 
 - Initial open-source preview target for local-first Agent Deck supervision.
