@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -29,11 +30,13 @@ import { createMobileCrypto } from "../../services/mobile-crypto";
 const LOCAL_SIMULATOR_BRIDGE_URL = "ws://127.0.0.1:8765";
 
 export default function PairingScreen() {
+  const [bridgeUrl, setBridgeUrl] = useState("");
   const [pairingCode, setPairingCode] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [hosts, setHosts] = useState<DiscoveredHost[]>([]);
   const [selectedHost, setSelectedHost] = useState<DiscoveredHost | null>(null);
   const [discovering, setDiscovering] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const router = useRouter();
   const connStatus = useConnectionStore((s) => s.status);
   const errorMessage = useConnectionStore((s) => s.errorMessage);
@@ -50,7 +53,15 @@ export default function PairingScreen() {
 
   async function refreshHosts(isActive: () => boolean): Promise<void> {
     setDiscovering(true);
-    const discovered = await discoverAgentDeckHosts();
+    setDiscoveryError(null);
+    let discovered: DiscoveredHost[] = [];
+    try {
+      discovered = await discoverAgentDeckHosts();
+    } catch (error) {
+      if (isActive()) {
+        setDiscoveryError(error instanceof Error ? error.message : "Could not search the local network.");
+      }
+    }
     if (!isActive()) return;
     setHosts(discovered);
     setDiscovering(false);
@@ -74,26 +85,49 @@ export default function PairingScreen() {
     Keyboard.dismiss();
     try {
       const input = pairingCode.trim();
-      const normalized = __DEV__ && input.startsWith("ws") ? normalizeBridgeUrl(input) : null;
-      const host = selectedHost ?? (hosts.length === 1 ? hosts[0] : null);
-      if (!normalized && !host) {
-        throw new Error(hosts.length === 0 ? "No Agent Deck host found on this network." : "Select a host before pairing.");
+      const manualUrl = bridgeUrl.trim() ? normalizeBridgeUrl(bridgeUrl) : null;
+      if (bridgeUrl.trim() && !manualUrl) {
+        throw new Error("Enter a valid bridge address, such as 192.168.1.20:8765.");
       }
-      const connection = normalized
-        ? { url: normalized }
-        : {
-            url: host!.url,
-            hostPublicKey: host!.hostPublicKey,
-            hostName: host!.name,
+
+      const host = manualUrl
+        ? hosts.find((candidate) => candidate.url === manualUrl) ?? null
+        : selectedHost ?? (hosts.length === 1 ? hosts[0] : null);
+      const url = manualUrl ?? host?.url ?? null;
+      const localDevelopmentBridge =
+        __DEV__ && (url === LOCAL_SIMULATOR_BRIDGE_URL || url === "ws://localhost:8765");
+      if (!url) {
+        throw new Error(
+          hosts.length === 0
+            ? "No computer found. Enter the bridge IP and port, then try again."
+            : "Select a computer or enter its bridge IP and port.",
+        );
+      }
+      if (!localDevelopmentBridge && !isValidPairingCode(input)) {
+        throw new Error("Enter the four digit pairing code shown by Agent Deck Host.");
+      }
+
+      const connection = host
+        ? {
+            url: host.url,
+            hostPublicKey: host.hostPublicKey,
+            hostName: host.name,
             pairingCode: input,
+          }
+        : {
+            url,
+            ...(localDevelopmentBridge ? {} : { pairingCode: input, requestHostPublicKey: true }),
           };
-      setPairingCode(normalized ?? input);
       setConnecting(true);
       useConnectionStore.getState().setPairingStatus("pairing");
       await saveBridgeConnection(connection);
       connectToBridge(
         connection.url,
-        "hostPublicKey" in connection ? { ...connection, crypto: createMobileCrypto() } : {},
+        "hostPublicKey" in connection
+          ? { ...connection, crypto: createMobileCrypto() }
+          : localDevelopmentBridge
+            ? {}
+            : { ...connection, crypto: createMobileCrypto() },
       );
     } catch (err) {
       setConnecting(false);
@@ -116,12 +150,14 @@ export default function PairingScreen() {
     Alert.alert("Unpaired", "This device has been unpaired from the host.");
   }
 
-  const hasPairingInput = isValidPairingCode(pairingCode) || (__DEV__ && pairingCode.startsWith("ws"));
-  const canPair = hasPairingInput && !connecting;
+  const hasPairingInput = isValidPairingCode(pairingCode);
+  const canPair = !connecting;
   const pairingHint = connecting
     ? "Connection attempt in progress"
     : !hasPairingInput
       ? "Enter the four digit pairing code first"
+      : !bridgeUrl.trim() && hosts.length === 0
+        ? "Enter the bridge IP address and port, or use Find Computers"
       : undefined;
 
   const statusLabel: Record<PairingStatus, string> = {
@@ -136,7 +172,10 @@ export default function PairingScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.inner}>
+      <ScrollView
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text
           style={styles.heading}
           accessibilityRole="header"
@@ -163,7 +202,7 @@ export default function PairingScreen() {
         </View>
 
         <Text style={styles.description}>
-          Open Agent Deck Host on your computer, then enter the 4-digit code it shows.
+          Find your computer on the local network, or enter its bridge address manually. Then enter the 4-digit code it shows.
         </Text>
 
         {connStatus === "failed" || errorMessage ? (
@@ -172,8 +211,31 @@ export default function PairingScreen() {
           </Text>
         ) : null}
 
+        {discoveryError ? (
+          <Text style={styles.errorText} accessibilityRole="alert">
+            {discoveryError}
+          </Text>
+        ) : null}
+
         <TextInput
           style={styles.input}
+          value={bridgeUrl}
+          onChangeText={(value) => {
+            setBridgeUrl(value);
+            if (selectedHost && value.trim() !== selectedHost.url) setSelectedHost(null);
+          }}
+          placeholder="192.168.1.20:8765"
+          placeholderTextColor="#aaa"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          returnKeyType="next"
+          accessibilityLabel="Bridge IP address and port"
+          accessibilityHint="Enter the computer's IP address and bridge port, for example 192.168.1.20:8765"
+        />
+
+        <TextInput
+          style={[styles.input, styles.codeInput]}
           value={pairingCode}
           onChangeText={(value) => setPairingCode(normalizePairingCode(value))}
           placeholder="0000"
@@ -181,7 +243,7 @@ export default function PairingScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="number-pad"
-          maxLength={__DEV__ ? 64 : 4}
+          maxLength={4}
           textAlign="center"
           returnKeyType="done"
           onSubmitEditing={handlePair}
@@ -197,7 +259,10 @@ export default function PairingScreen() {
           <Pressable
             key={host.hostId || host.url}
             style={[styles.hostBtn, selectedHost?.url === host.url && styles.hostBtnSelected]}
-            onPress={() => setSelectedHost(host)}
+            onPress={() => {
+              setSelectedHost(host);
+              setBridgeUrl(host.url);
+            }}
             accessibilityRole="button"
             accessibilityLabel={`Select ${host.name}`}
             accessibilityState={{ selected: selectedHost?.url === host.url }}
@@ -218,7 +283,10 @@ export default function PairingScreen() {
         {__DEV__ ? (
           <Pressable
             style={styles.devBridgeBtn}
-            onPress={() => setPairingCode(LOCAL_SIMULATOR_BRIDGE_URL)}
+            onPress={() => {
+              setBridgeUrl(LOCAL_SIMULATOR_BRIDGE_URL);
+              setPairingCode("");
+            }}
             accessibilityLabel="Use local simulator bridge"
             accessibilityRole="button"
             accessibilityHint="Fills the localhost bridge URL used by the Android simulator development workflow"
@@ -252,7 +320,7 @@ export default function PairingScreen() {
             <Text style={styles.unpairBtnText}>Unpair</Text>
           </Pressable>
         )}
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -260,7 +328,7 @@ export default function PairingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
   inner: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     alignItems: "center",
     justifyContent: "center",
@@ -299,7 +367,7 @@ const styles = StyleSheet.create({
   hostBtnText: { color: "#222", fontSize: 15, fontWeight: "600" },
   input: {
     width: "100%",
-    minHeight: 120,
+    minHeight: 52,
     backgroundColor: "#fff",
     borderRadius: 10,
     borderWidth: 1,
@@ -309,6 +377,7 @@ const styles = StyleSheet.create({
     color: "#111",
     marginBottom: 16,
   },
+  codeInput: { textAlign: "center" },
   devBridgeBtn: {
     minHeight: 48,
     width: "100%",

@@ -8,6 +8,7 @@ export interface SavedBridgeConnection {
   pairingNonce?: string;
   pairingCode?: string;
   hostName?: string;
+  requestHostPublicKey?: boolean;
 }
 
 export async function loadSavedBridgeConnection(): Promise<SavedBridgeConnection | null> {
@@ -24,6 +25,9 @@ export async function loadSavedBridgeConnection(): Promise<SavedBridgeConnection
       ...(typeof value.pairingNonce === "string" ? { pairingNonce: value.pairingNonce } : {}),
       ...(typeof value.pairingCode === "string" ? { pairingCode: value.pairingCode } : {}),
       ...(typeof value.hostName === "string" ? { hostName: value.hostName } : {}),
+      ...(typeof value.requestHostPublicKey === "boolean"
+        ? { requestHostPublicKey: value.requestHostPublicKey }
+        : {}),
     };
   } catch {
     return null;

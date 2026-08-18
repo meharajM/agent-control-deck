@@ -45,6 +45,25 @@ function waitForClose(ws: WebSocket, timeout = 2000): Promise<{ code: number; re
   });
 }
 
+function waitForMessages(ws: WebSocket, count: number, timeout = 2000): Promise<unknown[]> {
+  return new Promise((resolve, reject) => {
+    const messages: unknown[] = [];
+    const timer = setTimeout(() => {
+      ws.off('message', onMessage);
+      reject(new Error('timeout waiting for messages'));
+    }, timeout);
+    const onMessage = (data: WebSocket.RawData) => {
+      messages.push(JSON.parse(String(data)) as unknown);
+      if (messages.length >= count) {
+        clearTimeout(timer);
+        ws.off('message', onMessage);
+        resolve(messages);
+      }
+    };
+    ws.on('message', onMessage);
+  });
+}
+
 function createFakeDb() {
   return createFakeDbWithEvents();
 }
@@ -225,6 +244,33 @@ describe('UcpGateway secure mode', () => {
     expect(initialized.type).toBe('connection.initialized');
     expect(initialized.hostId).toBe('test-host');
     expect(pairedDevices.get(deviceKeys.publicKeyBase64)?.deviceName).toBe('QA iPhone');
+    ws.close();
+  });
+
+  it('returns a plaintext host-key bootstrap for manual endpoint pairing', async () => {
+    const { port, hostKeys } = await createGateway();
+    const deviceKeys = await generateIdentityKeyPair();
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.once('open', resolve));
+    const framesPromise = waitForMessages(ws, 2);
+
+    ws.send(JSON.stringify({
+      type: 'connection.initialize',
+      payload: {
+        devicePublicKey: deviceKeys.publicKeyBase64,
+        deviceName: 'Manual Endpoint iPhone',
+        pairingNonce: 'pairing-nonce-1',
+        requestHostPublicKey: true,
+      },
+    }));
+
+    const [bootstrap, snapshotFrame] = await framesPromise as [Record<string, unknown>, EncryptedFrame];
+    expect(bootstrap.encrypted).toBeUndefined();
+    expect((bootstrap.payload as Record<string, unknown>).hostPublicKey).toBe(hostKeys.publicKeyBase64);
+
+    const session = deriveSessionKey(deviceKeys.privateKeyBase64, hostKeys.publicKeyBase64);
+    const snapshot = decryptFrame(snapshotFrame, session.sessionKeyBase64) as unknown as UcpEnvelope;
+    expect(snapshot.type).toBe('host.snapshot');
     ws.close();
   });
 

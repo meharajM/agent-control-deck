@@ -15,6 +15,7 @@ export interface BridgeConnectionOptions {
   pairingNonce?: string;
   pairingCode?: string;
   hostName?: string;
+  requestHostPublicKey?: boolean;
   crypto?: UcpClientCrypto;
 }
 

@@ -240,6 +240,7 @@ export class UcpGateway {
           const devicePublicKey = payload?.devicePublicKey as string | undefined;
           const deviceName = (payload?.deviceName as string) ?? 'Unknown Device';
           const pairingCode = payload?.pairingCode as string | undefined;
+          const requestHostPublicKey = payload?.requestHostPublicKey === true;
           const pairingNonce =
             (payload?.pairingNonce as string | undefined) ??
             (pairingCode ? this.config.resolvePairingCode?.(pairingCode) ?? undefined : undefined);
@@ -307,12 +308,20 @@ export class UcpGateway {
             handshakeTimer = null;
           }
 
-          // Send connection.initialized
+          // A manually entered endpoint does not have the host key that Bonjour
+          // or QR pairing normally supplies. The host key is public, so send a
+          // one-time plaintext bootstrap response before encrypted state. The
+          // pairing code and device key have already authenticated this socket.
           const envelope = this.buildEnvelope('connection.initialized', {
             hostId: this.config.hostId,
             hostName: this.config.hostName ?? '',
+            ...(requestHostPublicKey ? { hostPublicKey: this.config.hostPublicKey } : {}),
           }, undefined);
-          this.sendEncrypted(authenticatedClient, envelope);
+          if (requestHostPublicKey) {
+            this.sendPlaintext(authenticatedClient.ws, envelope);
+          } else {
+            this.sendEncrypted(authenticatedClient, envelope);
+          }
           this.sendSnapshot(authenticatedClient);
           this.replayEvents(authenticatedClient, lastSyncSequence);
         } else {

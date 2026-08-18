@@ -114,6 +114,44 @@ describe("UcpClient.connect", () => {
     expect((msg["payload"] as Record<string, unknown>)["lastSyncSequence"]).toBe(42);
   });
 
+  it("requests the host key when pairing through a manual endpoint", async () => {
+    const crypto = {
+      generateKeyPair: vi.fn().mockResolvedValue({
+        publicKeyBase64: "device-public-key",
+        privateKeyBase64: "device-private-key",
+      }),
+      deriveSessionKey: vi.fn().mockReturnValue({ sessionKeyBase64: "session-key" }),
+      encryptFrame: vi.fn(),
+      decryptFrame: vi.fn(),
+    };
+    const client = new UcpClient("ws://192.168.1.20:8765", {
+      onEvent: () => undefined,
+      onConnected: () => undefined,
+      onDisconnected: () => undefined,
+      onError: () => undefined,
+    }, {
+      crypto,
+      pairingCode: "1234",
+      requestHostPublicKey: true,
+    });
+    client.connect();
+    mockWsInstance.simulateOpen();
+    await Promise.resolve();
+
+    const msg = JSON.parse(mockWsInstance.sentMessages[0]!) as Record<string, unknown>;
+    expect((msg["payload"] as Record<string, unknown>)["pairingCode"]).toBe("1234");
+    expect((msg["payload"] as Record<string, unknown>)["requestHostPublicKey"]).toBe(true);
+
+    mockWsInstance.simulateMessage(JSON.stringify({
+      type: "connection.initialized",
+      payload: { hostId: "host_abc", hostPublicKey: "host-public-key" },
+    }));
+    expect(crypto.deriveSessionKey).toHaveBeenCalledWith(
+      "device-private-key",
+      "host-public-key",
+    );
+  });
+
   it("does not open a second socket when already connecting", () => {
     const client = new UcpClient("ws://localhost:8765", {
       onEvent: () => undefined,

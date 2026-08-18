@@ -46,6 +46,7 @@ export interface UcpClientOpts {
   hostPublicKey?: string;
   pairingNonce?: string;
   pairingCode?: string;
+  requestHostPublicKey?: boolean;
   getLastSyncSequence?: () => number;
 }
 
@@ -75,6 +76,7 @@ export class UcpClient {
   private outboundSequence = 0;
   private pairingNonce: string | null = null;
   private pairingCode: string | null = null;
+  private requestHostPublicKey: boolean;
   private getLastSyncSequence: () => number;
 
   constructor(
@@ -93,6 +95,7 @@ export class UcpClient {
     }
     this.pairingNonce = opts.pairingNonce ?? null;
     this.pairingCode = opts.pairingCode ?? null;
+    this.requestHostPublicKey = opts.requestHostPublicKey ?? false;
     this.getLastSyncSequence = opts.getLastSyncSequence ?? (() => 0);
   }
 
@@ -265,6 +268,9 @@ export class UcpClient {
       if (this.pairingCode) {
         handshakePayload.pairingCode = this.pairingCode;
       }
+      if (this.requestHostPublicKey) {
+        handshakePayload.requestHostPublicKey = true;
+      }
 
       if (this.crypto && this.publicKeyBase64) {
         handshakePayload.devicePublicKey = this.publicKeyBase64;
@@ -322,6 +328,14 @@ export class UcpClient {
           ? p["hostName"]
           : undefined;
       this.hostId = hostId;
+
+      const negotiatedHostPublicKey =
+        typeof p?.["hostPublicKey"] === "string" && p["hostPublicKey"].length > 0
+          ? p["hostPublicKey"]
+          : null;
+      if (negotiatedHostPublicKey) {
+        this.setHostPublicKey(negotiatedHostPublicKey);
+      }
 
       // Derive session key if we have crypto and host public key
       if (this.crypto && this.privateKeyBase64 && this._hostPublicKey) {
