@@ -49,6 +49,7 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: cd apps/mobile/ios && pod install
       - run: >-
           xcodebuild -workspace apps/mobile/ios/AgentDeck.xcworkspace
